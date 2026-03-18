@@ -1,0 +1,320 @@
+; x16.inc - Comprehensive Commander X16 equates for ca65
+;
+; This file defines all hardware registers, KERNAL entry points,
+; and common constants for Commander X16 assembly programming.
+;
+; Usage:
+;   .include "x16.inc"
+
+; ===========================================================================
+; KERNAL Jump Table
+; ===========================================================================
+; These are the standard CBM KERNAL routines available on the X16.
+
+; --- Character I/O ---
+CHROUT          = $FFD2         ; Output a character (A = character)
+CHRIN           = $FFCF         ; Input a character (returns in A)
+GETIN           = $FFE4         ; Get character from keyboard buffer (A = char, 0 = none)
+
+; --- Screen ---
+PLOT            = $FFF0         ; Get/set cursor position (C=0: set X=row,Y=col; C=1: get)
+SCREEN_MODE     = $FF5F         ; Get/set screen mode (A = mode, C=0: set, C=1: get)
+
+; --- Channel I/O ---
+CLRCH           = $FFCC         ; Clear I/O channels
+OPEN            = $FFC0         ; Open a logical file
+CLOSE           = $FFC3         ; Close a logical file
+CHKIN           = $FFC6         ; Set input channel (X = logical file number)
+CHKOUT          = $FFC9         ; Set output channel (X = logical file number)
+CLALL           = $FFE7         ; Close all files
+
+; --- File I/O ---
+SETLFS          = $FFBA         ; Set logical file parameters (A=LFN, X=device, Y=secondary)
+SETNAM          = $FFBD         ; Set filename (A=length, X/Y=pointer lo/hi)
+LOAD            = $FFD5         ; Load from device (A=0:load, A=1:verify; X/Y=address)
+SAVE            = $FFD8         ; Save to device (A=zp pointer, X/Y=end address)
+READST          = $FFB7         ; Read I/O status byte
+
+; --- Misc KERNAL ---
+STOP            = $FFE1         ; Check STOP key (Z=1 if pressed)
+
+; --- X16-specific KERNAL extensions ---
+MOUSE_CONFIG    = $FF68         ; Configure mouse (A: 0=off, 1=on, $FF=on+cursor)
+MOUSE_GET       = $FF6B         ; Get mouse state (X=zp addr for data)
+JOYSTICK_GET    = $FF56         ; Get joystick state (A=joystick number)
+CLOCK_GET_DATE_TIME = $FF50     ; Get date/time
+CLOCK_SET_DATE_TIME = $FF4D     ; Set date/time
+MEMORY_FILL     = $FF84         ; Fill memory (r0=addr, r1=count, A=value) [X16 ext]
+MEMORY_COPY     = $FF87         ; Copy memory (r0=src, r1=dst, r2=count) [X16 ext]
+MEMORY_CRC      = $FF8A         ; CRC memory (r0=addr, r1=count) [X16 ext]
+CONSOLE_PUT_CHAR = $FEDE        ; Output character to console
+FB_INIT         = $FEF6         ; Init framebuffer driver
+FB_GET_INFO     = $FEF9         ; Get framebuffer info
+FB_SET_PALETTE  = $FEFC         ; Set palette entry
+FB_CURSOR_POSITION = $FEFF      ; Set cursor position
+FB_CURSOR_NEXT_LINE = $FF02     ; Move cursor to next line
+FB_GET_PIXEL    = $FF05         ; Get pixel at cursor
+FB_GET_PIXELS   = $FF08         ; Get pixels at cursor
+FB_SET_PIXEL    = $FF0B         ; Set pixel at cursor
+FB_SET_PIXELS   = $FF0E         ; Set pixels at cursor
+FB_SET_8_PIXELS = $FF11         ; Set 8 pixels at cursor
+FB_SET_8_PIXELS_OPAQUE = $FF14  ; Set 8 pixels (opaque) at cursor
+FB_FILL_PIXELS  = $FF17         ; Fill pixels at cursor
+FB_FILTER_PIXELS = $FF1A        ; Filter pixels at cursor
+FB_MOVE_PIXELS  = $FF1D         ; Move pixels
+GRAPH_INIT      = $FF20         ; Init graphics driver
+GRAPH_CLEAR     = $FF23         ; Clear screen
+GRAPH_SET_WINDOW = $FF26        ; Set clipping window
+GRAPH_SET_COLORS = $FF29        ; Set stroke/fill/background colors
+GRAPH_DRAW_LINE = $FF2C         ; Draw line
+GRAPH_DRAW_RECT = $FF2F         ; Draw rectangle
+GRAPH_MOVE_RECT = $FF32         ; Move rectangle
+GRAPH_DRAW_OVAL = $FF35         ; Draw oval
+GRAPH_DRAW_IMAGE = $FF38        ; Draw image
+GRAPH_SET_FONT  = $FF3B         ; Set font
+GRAPH_GET_CHAR_SIZE = $FF3E     ; Get character size
+MACPTR          = $FF44         ; Read multiple bytes from peripheral bus
+ENTER_BASIC     = $FF47         ; Enter BASIC
+CLOSE_ALL       = $FF4A         ; Close all files on a device
+I2C_READ_BYTE   = $FEC6         ; Read byte from I2C
+I2C_WRITE_BYTE  = $FEC9         ; Write byte to I2C
+SPRITE_SET_IMAGE = $FEF0        ; Set sprite image
+SPRITE_SET_POSITION = $FEF3     ; Set sprite position
+
+; ===========================================================================
+; Zero Page Locations
+; ===========================================================================
+; KERNAL/BASIC zero page usage: $00-$21 (registers R0-R15)
+; User-available zero page: $22-$7F
+
+; --- Banking registers ---
+RAM_BANK        = $00           ; Current RAM bank (0-255, maps $A000-$BFFF)
+ROM_BANK        = $01           ; Current ROM bank (0-31, maps $C000-$FFFF)
+
+; --- API registers R0-R15 (used by KERNAL API calls) ---
+R0              = $02           ; Register 0 (16-bit: $02-$03)
+R0L             = $02
+R0H             = $03
+R1              = $04           ; Register 1 (16-bit: $04-$05)
+R1L             = $04
+R1H             = $05
+R2              = $06           ; Register 2 (16-bit: $06-$07)
+R2L             = $06
+R2H             = $07
+R3              = $08           ; Register 3 (16-bit: $08-$09)
+R3L             = $08
+R3H             = $09
+R4              = $0A           ; Register 4 (16-bit: $0A-$0B)
+R4L             = $0A
+R4H             = $0B
+R5              = $0C           ; Register 5 (16-bit: $0C-$0D)
+R5L             = $0C
+R5H             = $0D
+R6              = $0E           ; Register 6 (16-bit: $0E-$0F)
+R6L             = $0E
+R6H             = $0F
+R7              = $10           ; Register 7 (16-bit: $10-$11)
+R7L             = $10
+R7H             = $11
+R8              = $12           ; Register 8 (16-bit: $12-$13)
+R8L             = $12
+R8H             = $13
+R9              = $14           ; Register 9 (16-bit: $14-$15)
+R9L             = $14
+R9H             = $15
+R10             = $16           ; Register 10 (16-bit: $16-$17)
+R10L            = $16
+R10H            = $17
+R11             = $18           ; Register 11 (16-bit: $18-$19)
+R11L            = $18
+R11H            = $19
+R12             = $1A           ; Register 12 (16-bit: $1A-$1B)
+R12L            = $1A
+R12H            = $1B
+R13             = $1C           ; Register 13 (16-bit: $1C-$1D)
+R13L            = $1C
+R13H            = $1D
+R14             = $1E           ; Register 14 (16-bit: $1E-$1F)
+R14L            = $1E
+R14H            = $1F
+R15             = $20           ; Register 15 (16-bit: $20-$21)
+R15L            = $20
+R15H            = $21
+
+; --- User zero page pointers ---
+ZP_PTR1         = $22           ; General-purpose pointer 1 (16-bit: $22-$23)
+ZP_PTR1L        = $22
+ZP_PTR1H        = $23
+ZP_PTR2         = $24           ; General-purpose pointer 2 (16-bit: $24-$25)
+ZP_PTR2L        = $24
+ZP_PTR2H        = $25
+ZP_PTR3         = $26           ; General-purpose pointer 3 (16-bit: $26-$27)
+ZP_PTR3L        = $26
+ZP_PTR3H        = $27
+ZP_PTR4         = $28           ; General-purpose pointer 4 (16-bit: $28-$29)
+ZP_PTR4L        = $28
+ZP_PTR4H        = $29
+ZP_TMP1         = $2A           ; Temporary byte 1
+ZP_TMP2         = $2B           ; Temporary byte 2
+ZP_TMP3         = $2C           ; Temporary byte 3
+ZP_TMP4         = $2D           ; Temporary byte 4
+
+; ===========================================================================
+; VERA Registers ($9F20-$9F3F)
+; ===========================================================================
+; The Versatile Embedded Retro Adapter handles all graphics and audio.
+
+; --- Address and data ports ---
+VERA_ADDR_L     = $9F20         ; VRAM address bits 0-7
+VERA_ADDR_M     = $9F21         ; VRAM address bits 8-15
+VERA_ADDR_H     = $9F22         ; bits 0-3: addr[16:19], bit 4: DECR, bits 4-7: increment
+VERA_DATA0      = $9F23         ; Data port 0 (active when CTRL bit 0 = 0)
+VERA_DATA1      = $9F24         ; Data port 1 (active when CTRL bit 0 = 1)
+
+; --- Control ---
+VERA_CTRL       = $9F25         ; bit 0: ADDRSEL, bit 1: DCSEL, bit 7: RESET
+VERA_IEN        = $9F26         ; Interrupt enable (bit 0: VSYNC, bit 1: LINE, bit 2: SPRCOL)
+VERA_ISR        = $9F27         ; Interrupt status (same bits as IEN, write 1 to clear)
+VERA_IRQLINE_L  = $9F28         ; IRQ raster line compare (low byte)
+
+; --- Display composer ---
+VERA_DC_VIDEO   = $9F29         ; Video output mode, layer/sprite enable
+VERA_DC_HSCALE  = $9F2A         ; Horizontal scale ($80 = 1x)
+VERA_DC_VSCALE  = $9F2B         ; Vertical scale ($80 = 1x)
+VERA_DC_BORDER  = $9F2C         ; Border color (palette index)
+
+; --- Layer 0 ---
+VERA_L0_CONFIG  = $9F2D         ; Layer 0: mode, color depth, map size
+VERA_L0_MAPBASE = $9F2E         ; Layer 0: map base address (addr >> 9)
+VERA_L0_TILEBASE = $9F2F        ; Layer 0: tile base address, tile size
+VERA_L0_HSCROLL_L = $9F30       ; Layer 0: horizontal scroll low byte
+VERA_L0_HSCROLL_H = $9F31       ; Layer 0: horizontal scroll high byte
+VERA_L0_VSCROLL_L = $9F32       ; Layer 0: vertical scroll low byte
+VERA_L0_VSCROLL_H = $9F33       ; Layer 0: vertical scroll high byte
+
+; --- Layer 1 ---
+VERA_L1_CONFIG  = $9F34         ; Layer 1: mode, color depth, map size
+VERA_L1_MAPBASE = $9F35         ; Layer 1: map base address (addr >> 9)
+VERA_L1_TILEBASE = $9F36        ; Layer 1: tile base address, tile size
+VERA_L1_HSCROLL_L = $9F37       ; Layer 1: horizontal scroll low byte
+VERA_L1_HSCROLL_H = $9F38       ; Layer 1: horizontal scroll high byte
+VERA_L1_VSCROLL_L = $9F39       ; Layer 1: vertical scroll low byte
+VERA_L1_VSCROLL_H = $9F3A       ; Layer 1: vertical scroll high byte
+
+; --- Audio ---
+VERA_AUDIO_CTRL = $9F3B         ; Audio control (bit 0: FIFO reset, bit 4-5: PCM vol)
+VERA_AUDIO_RATE = $9F3C         ; Audio PCM sample rate
+VERA_AUDIO_DATA = $9F3D         ; Audio FIFO data (write to push samples)
+
+; --- SPI ---
+VERA_SPI_DATA   = $9F3E         ; SPI data register
+VERA_SPI_CTRL   = $9F3F         ; SPI control (bit 0: CS select)
+
+; ===========================================================================
+; VIA1 Registers ($9F00-$9F0F)  -  VIA #1 (active accent LED, I2C, etc.)
+; ===========================================================================
+VIA1_PRB        = $9F00         ; Port B data register
+VIA1_PRA        = $9F01         ; Port A data register
+VIA1_DDRB       = $9F02         ; Port B data direction register
+VIA1_DDRA       = $9F03         ; Port A data direction register
+VIA1_T1CL       = $9F04         ; Timer 1 counter low
+VIA1_T1CH       = $9F05         ; Timer 1 counter high
+VIA1_T1LL       = $9F06         ; Timer 1 latch low
+VIA1_T1LH       = $9F07         ; Timer 1 latch high
+VIA1_T2CL       = $9F08         ; Timer 2 counter low
+VIA1_T2CH       = $9F09         ; Timer 2 counter high
+VIA1_SR         = $9F0A         ; Shift register
+VIA1_ACR        = $9F0B         ; Auxiliary control register
+VIA1_PCR        = $9F0C         ; Peripheral control register
+VIA1_IFR        = $9F0D         ; Interrupt flag register
+VIA1_IER        = $9F0E         ; Interrupt enable register
+VIA1_PRA_NH     = $9F0F         ; Port A (no handshake)
+
+; ===========================================================================
+; VIA2 Registers ($9F10-$9F1F)  -  VIA #2 (accent LED accent accent accent)
+; ===========================================================================
+VIA2_PRB        = $9F10         ; Port B data register
+VIA2_PRA        = $9F11         ; Port A data register
+VIA2_DDRB       = $9F12         ; Port B data direction register
+VIA2_DDRA       = $9F13         ; Port A data direction register
+VIA2_T1CL       = $9F14         ; Timer 1 counter low
+VIA2_T1CH       = $9F15         ; Timer 1 counter high
+VIA2_T1LL       = $9F16         ; Timer 1 latch low
+VIA2_T1LH       = $9F17         ; Timer 1 latch high
+VIA2_T2CL       = $9F18         ; Timer 2 counter low
+VIA2_T2CH       = $9F19         ; Timer 2 counter high
+VIA2_SR         = $9F1A         ; Shift register
+VIA2_ACR        = $9F1B         ; Auxiliary control register
+VIA2_PCR        = $9F1C         ; Peripheral control register
+VIA2_IFR        = $9F1D         ; Interrupt flag register
+VIA2_IER        = $9F1E         ; Interrupt enable register
+VIA2_PRA_NH     = $9F1F         ; Port A (no handshake)
+
+; ===========================================================================
+; YM2151 Registers ($9F40-$9F41)
+; ===========================================================================
+; The Yamaha YM2151 (OPM) FM synthesis chip provides 8 channels of audio.
+YM2151_ADDR     = $9F40         ; YM2151 register address (write)
+YM2151_DATA     = $9F41         ; YM2151 register data (read/write)
+
+; ===========================================================================
+; Common Constants
+; ===========================================================================
+; --- Screen dimensions (default 80x60 text mode) ---
+SCREEN_WIDTH    = 80            ; Characters per row
+SCREEN_HEIGHT   = 60            ; Rows per screen
+
+; --- Color values (PETSCII color codes) ---
+COLOR_BLACK     = 0
+COLOR_WHITE     = 1
+COLOR_RED       = 2
+COLOR_CYAN      = 3
+COLOR_PURPLE    = 4
+COLOR_GREEN     = 5
+COLOR_BLUE      = 6
+COLOR_YELLOW    = 7
+COLOR_ORANGE    = 8
+COLOR_BROWN     = 9
+COLOR_LTRED     = 10
+COLOR_DKGRAY    = 11
+COLOR_GRAY      = 12
+COLOR_LTGREEN   = 13
+COLOR_LTBLUE    = 14
+COLOR_LTGRAY    = 15
+
+; --- PETSCII control codes ---
+PETSCII_CR      = $0D           ; Carriage return
+PETSCII_CLR     = $93           ; Clear screen
+PETSCII_HOME    = $13           ; Cursor home
+PETSCII_DEL     = $14           ; Delete
+PETSCII_INS     = $94           ; Insert
+PETSCII_CRSR_UP = $91           ; Cursor up
+PETSCII_CRSR_DN = $11           ; Cursor down
+PETSCII_CRSR_LF = $9D           ; Cursor left
+PETSCII_CRSR_RT = $1D           ; Cursor right
+PETSCII_RVS_ON  = $12           ; Reverse on
+PETSCII_RVS_OFF = $92           ; Reverse off
+
+; --- Memory layout ---
+BASIC_START     = $0801         ; Start of BASIC program area
+CODE_START      = $080D         ; Start of machine code (after BASIC stub)
+IO_START        = $9F00         ; Start of I/O register space
+BANK_RAM_START  = $A000         ; Start of banked RAM window (8KB)
+BANK_RAM_END    = $BFFF         ; End of banked RAM window
+BANK_ROM_START  = $C000         ; Start of banked ROM window (16KB)
+BANK_ROM_END    = $FFFF         ; End of banked ROM window
+BANK_RAM_SIZE   = $2000         ; Size of each RAM bank (8KB)
+NUM_RAM_BANKS   = 256           ; Number of RAM banks (256 * 8KB = 2MB max)
+
+; --- VERA auto-increment stride values (for VERA_ADDR_H bits 4-7) ---
+VERA_STRIDE_0   = $00           ; No increment
+VERA_STRIDE_1   = $10           ; Increment by 1
+VERA_STRIDE_2   = $20           ; Increment by 2
+VERA_STRIDE_4   = $30           ; Increment by 4
+VERA_STRIDE_8   = $40           ; Increment by 8
+VERA_STRIDE_16  = $50           ; Increment by 16
+VERA_STRIDE_32  = $60           ; Increment by 32
+VERA_STRIDE_64  = $70           ; Increment by 64
+VERA_STRIDE_128 = $80           ; Increment by 128
+VERA_STRIDE_256 = $90           ; Increment by 256
+VERA_STRIDE_512 = $A0           ; Increment by 512
