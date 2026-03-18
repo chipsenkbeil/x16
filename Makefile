@@ -99,7 +99,7 @@ list-templates:
 	@echo ""
 	@echo "Available templates:"
 	@echo ""
-	@for dir in projects/templates/*/; do \
+	@for dir in templates/*/; do \
 		name=$$(basename "$$dir"); \
 		if [ "$$name" != "shared" ]; then \
 			desc=""; status=""; \

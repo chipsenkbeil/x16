@@ -33,15 +33,17 @@ docs/               Comprehensive X16 documentation
   contributing-guide.md       How to contribute to X16 repos
   cross-compilation-guide.md  llvm-mos, Rust, Zig for X16
 
-projects/           Project templates & your projects
-  templates/cc65-c/           C project template (default)
-  templates/ca65-asm/         ca65 assembly template
-  templates/acme-asm/         ACME assembly template
-  templates/basic/            Interpreted BASIC template
-  templates/prog8/            Prog8 compiled language template
-  templates/llvm-mos-c/       llvm-mos C template
-  templates/rust-mos/         Rust template (experimental)
-  templates/shared/           Shared include files
+templates/          Project templates
+  cc65-c/                     C project template (default)
+  ca65-asm/                   ca65 assembly template
+  acme-asm/                   ACME assembly template
+  basic/                      Interpreted BASIC template
+  prog8/                      Prog8 compiled language template
+  llvm-mos-c/                 llvm-mos C template
+  rust-mos/                   Rust template (experimental)
+  shared/                     Shared include files
+
+projects/           Your projects (created via make new-project)
 
 scripts/            Automation scripts
   setup.sh                    Install toolchain

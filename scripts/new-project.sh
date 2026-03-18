@@ -37,7 +37,7 @@ header()  { printf "\n${BOLD}=== %s ===${NC}\n" "$*"; }
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-TEMPLATES_DIR="$PROJECT_ROOT/projects/templates"
+TEMPLATES_DIR="$PROJECT_ROOT/templates"
 PROJECTS_DIR="$PROJECT_ROOT/projects"
 
 VALID_TEMPLATES=("cc65-c" "ca65-asm" "acme-asm" "basic" "prog8" "llvm-mos-c" "rust-mos")
@@ -106,7 +106,7 @@ header "Creating project: $PROJECT_NAME (template: $TEMPLATE)"
 # Check template exists
 if [[ ! -d "$TEMPLATE_DIR" ]]; then
     error "Template directory not found: $TEMPLATE_DIR"
-    error "Make sure project templates are set up in projects/templates/"
+    error "Make sure project templates are set up in templates/"
     error "Expected templates: ${VALID_TEMPLATES[*]}"
     exit 1
 fi
