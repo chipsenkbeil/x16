@@ -1,0 +1,15 @@
+**/.DS_Store
+**/*.un~
+
+# Ignore contents of .claude by default (use /* not / so negations work)
+.claude/*
+
+# Explicitly allowlist project-related settings
+!.claude/CLAUDE.md
+!.claude/.clauderules
+!.claude/agents/
+!.claude/commands/
+!.claude/prompts/
+!.claude/skills/
+!.claude/mcp.json
+!.claude/settings.json
