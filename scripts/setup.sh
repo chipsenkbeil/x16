@@ -52,7 +52,16 @@ detect_os() {
     header "Detecting Operating System"
     case "$(uname -s)" in
         Darwin*)  OS="macos"; success "macOS detected ($(sw_vers -productVersion))" ;;
-        Linux*)   OS="linux"; success "Linux detected ($(uname -r))" ;;
+        Linux*)
+            OS="linux"
+            if [[ -f /etc/os-release ]]; then
+                local distro_name
+                distro_name="$(. /etc/os-release && echo "${PRETTY_NAME:-Linux}")"
+                success "Linux detected: $distro_name ($(uname -r))"
+            else
+                success "Linux detected ($(uname -r))"
+            fi
+            ;;
         *)        error "Unsupported OS: $(uname -s)"; exit 1 ;;
     esac
 
@@ -93,6 +102,9 @@ install_cc65() {
     if [[ "$OS" == "macos" ]] && cmd_exists brew; then
         info "Using Homebrew ..."
         brew install cc65
+    elif [[ "$OS" == "linux" ]] && cmd_exists pacman; then
+        info "Using pacman ..."
+        sudo pacman -S --noconfirm --needed cc65
     elif [[ "$OS" == "linux" ]] && cmd_exists apt-get; then
         info "Using apt ..."
         sudo apt-get update -qq
@@ -251,6 +263,8 @@ for asset in data.get('assets', []):
         # Install SDL2 dependency
         if [[ "$OS" == "macos" ]] && cmd_exists brew; then
             brew install sdl2
+        elif [[ "$OS" == "linux" ]] && cmd_exists pacman; then
+            sudo pacman -S --noconfirm --needed sdl2
         elif [[ "$OS" == "linux" ]] && cmd_exists apt-get; then
             sudo apt-get install -y libsdl2-dev
         fi

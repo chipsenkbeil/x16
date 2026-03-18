@@ -15,7 +15,7 @@ The Commander X16 is maintained by the X16Community organization on GitHub. The 
 - **Purpose**: Official Commander X16 emulator
 - **Language**: C
 - **Build prerequisites**: C compiler (gcc/clang), SDL2 development libraries, GNU Make
-- **Building**: `make` (ensure SDL2 is installed: `brew install sdl2` on macOS, `sudo apt install libsdl2-dev` on Linux)
+- **Building**: `make` (ensure SDL2 is installed: `brew install sdl2` on macOS, `sudo apt install libsdl2-dev` on Debian/Ubuntu, `sudo pacman -S sdl2` on Arch)
 - **Testing**: Run the emulator and verify behavior. Automated test suite uses `-test` flag for cycle-limited execution.
 - **PR conventions**: Describe the change and test results. Include screenshots for visual changes.
 

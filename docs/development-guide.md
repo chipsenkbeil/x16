@@ -40,6 +40,11 @@ brew install cc65
 sudo apt install cc65
 ```
 
+**Linux (Arch):**
+```bash
+sudo pacman -S cc65
+```
+
 **From source:**
 ```bash
 git clone https://github.com/cc65/cc65.git
