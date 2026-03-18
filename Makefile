@@ -30,8 +30,10 @@ help:
 	@printf "  %-46s %s\n" "make setup" "Install toolchain"
 	@printf "  %-46s %s\n" "make new-project NAME=my-game" "Create project (default template)"
 	@printf "  %-46s %s\n" "make new-project NAME=demo TEMPLATE=ca65-asm" "Create project (ca65 template)"
-	@printf "  %-46s %s\n" "make build PROJECT=projects/my-game" "Build a project"
-	@printf "  %-46s %s\n" "make run PROJECT=projects/my-game" "Build and run in emulator"
+	@printf "  %-46s %s\n" "make build" "Build a project (interactive selector)"
+	@printf "  %-46s %s\n" "make build PROJECT=projects/my-game" "Build a specific project"
+	@printf "  %-46s %s\n" "make run" "Build and run in emulator (interactive)"
+	@printf "  %-46s %s\n" "make run PROJECT=projects/my-game" "Build and run a specific project"
 	@echo ""
 
 ## setup: Install toolchain (cc65, emulator, ROM)
@@ -53,31 +55,38 @@ new-project:
 ## build: Build a project (PROJECT=projects/foo)
 build:
 	@if [ -z "$(PROJECT)" ]; then \
-		echo "Usage: make build PROJECT=projects/<name>"; \
-		exit 1; \
-	fi
-	@if [ ! -d "$(PROJECT)" ]; then \
-		echo "Error: Project directory '$(PROJECT)' not found"; \
-		exit 1; \
-	fi
-	@if [ -f "$(PROJECT)/Makefile" ]; then \
-		$(MAKE) -C "$(PROJECT)"; \
+		PROJECT=$$(./scripts/select-project.sh) || exit 1; \
 	else \
-		echo "Error: No Makefile found in $(PROJECT)"; \
+		PROJECT="$(PROJECT)"; \
+	fi; \
+	if [ ! -d "$$PROJECT" ]; then \
+		echo "Error: Project directory '$$PROJECT' not found"; \
+		exit 1; \
+	fi; \
+	if [ -f "$$PROJECT/Makefile" ]; then \
+		$(MAKE) -C "$$PROJECT"; \
+	else \
+		echo "Error: No Makefile found in $$PROJECT"; \
 		exit 1; \
 	fi
 
 ## run: Build + run in emulator (PROJECT=projects/foo)
 run:
 	@if [ -z "$(PROJECT)" ]; then \
-		echo "Usage: make run PROJECT=projects/<name>"; \
-		exit 1; \
-	fi
-	@./scripts/run.sh "$(PROJECT)"
+		PROJECT=$$(./scripts/select-project.sh) || exit 1; \
+	else \
+		PROJECT="$(PROJECT)"; \
+	fi; \
+	./scripts/run.sh "$$PROJECT"
 
 ## clean: Remove build artifacts from a project
 clean:
 	@if [ -z "$(PROJECT)" ]; then \
+		PROJECT=$$(./scripts/select-project.sh --allow-all) || exit 1; \
+	else \
+		PROJECT="$(PROJECT)"; \
+	fi; \
+	if [ "$$PROJECT" = "ALL" ]; then \
 		echo "Cleaning all projects..."; \
 		for dir in projects/*/; do \
 			if [ -f "$$dir/Makefile" ]; then \
@@ -86,10 +95,10 @@ clean:
 			fi; \
 		done; \
 	else \
-		if [ -f "$(PROJECT)/Makefile" ]; then \
-			$(MAKE) -C "$(PROJECT)" clean; \
+		if [ -f "$$PROJECT/Makefile" ]; then \
+			$(MAKE) -C "$$PROJECT" clean; \
 		else \
-			echo "Error: No Makefile found in $(PROJECT)"; \
+			echo "Error: No Makefile found in $$PROJECT"; \
 			exit 1; \
 		fi; \
 	fi
