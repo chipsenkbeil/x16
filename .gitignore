@@ -21,6 +21,7 @@ upstream/*
 # Build artifacts
 projects/*/build/
 *.prg
+*.i
 *.o
 *.obj
 *.sym
