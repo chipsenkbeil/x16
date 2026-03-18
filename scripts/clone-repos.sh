@@ -94,11 +94,11 @@ process_repo() {
     else
         # Fresh clone
         info "Cloning $repo ..."
-        local clone_args=()
+        local clone_cmd=(git clone)
         if $SHALLOW; then
-            clone_args+=(--depth 1)
+            clone_cmd+=(--depth 1)
         fi
-        if git clone "${clone_args[@]}" "$repo_url" "$repo_dir" 2>&1; then
+        if "${clone_cmd[@]}" "$repo_url" "$repo_dir" 2>&1; then
             success "Cloned $repo"
             CLONED=$((CLONED + 1))
         else

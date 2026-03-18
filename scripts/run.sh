@@ -224,7 +224,9 @@ fi
 header "Launch"
 
 # Build the full command
-CMD=("$X16EMU" -prg "$PRG_FILE" -run "${ROM_ARGS[@]}" "${EXTRA_ARGS[@]}")
+CMD=("$X16EMU" -prg "$PRG_FILE" -run)
+[[ ${#ROM_ARGS[@]} -gt 0 ]] && CMD+=("${ROM_ARGS[@]}")
+[[ ${#EXTRA_ARGS[@]} -gt 0 ]] && CMD+=("${EXTRA_ARGS[@]}")
 
 info "Running:"
 printf "  ${BOLD}%s${NC}\n" "${CMD[*]}"
