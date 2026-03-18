@@ -1,6 +1,6 @@
 # pong-c
 
-Two-player Pong game for the Commander X16, written in C (cc65). This is a C port of the ca65 assembly version in `projects/pong/`.
+Two-player Pong game for the Commander X16, written in C (cc65). This is a C port of the ca65 assembly version in `projects/pong-asm/`.
 
 ## Controls
 

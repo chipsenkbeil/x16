@@ -44,11 +44,14 @@ templates/          Project templates
   shared/                     Shared include files
 
 projects/           Your projects (created via make new-project)
+  pong-asm/                   Two-player Pong (ca65 assembly)
+  pong-c/                     Two-player Pong (C port, cc65)
 
 scripts/            Automation scripts
   setup.sh                    Install toolchain
   clone-repos.sh              Clone X16Community repos
   new-project.sh              Scaffold a new project
+  select-project.sh           Interactive project selector
   run.sh                      Build & run in emulator
 
 upstream/           Cloned X16Community repositories (gitignored)
@@ -61,9 +64,9 @@ make help            Show all targets (default)
 make setup           Install toolchain (cc65, emulator, ROM; use --prog8/--llvm-mos for extras)
 make clone-upstream  Clone all X16Community repos into upstream/
 make new-project     Scaffold new project (NAME=foo TEMPLATE=cc65-c)
-make build           Build a project (PROJECT=projects/foo)
-make run             Build + run in emulator (PROJECT=projects/foo)
-make clean           Remove build artifacts
+make build           Build a project (interactive selector, or PROJECT=projects/foo)
+make run             Build + run in emulator (interactive selector, or PROJECT=projects/foo)
+make clean           Clean build artifacts (interactive selector with "All" option)
 make list-templates  Show available templates
 ```
 

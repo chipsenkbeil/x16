@@ -1,8 +1,11 @@
-# pong
+# pong-asm
 
-A Commander X16 project built with ca65 assembly.
+Two-player Pong game for the Commander X16, written in ca65 assembly.
 
-Created: 2026-03-17
+- 3 hardware sprites (2 paddles + ball)
+- PSG sound effects (bounce + score)
+- Variable ball angle based on paddle hit position
+- Text-layer score display and center line
 
 ## Building
 
