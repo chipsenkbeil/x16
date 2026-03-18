@@ -1,0 +1,73 @@
+; main.a - Commander X16 Hello World (ACME assembler)
+;
+; A well-commented starter program demonstrating:
+;   - BASIC stub for auto-run
+;   - KERNAL calls for character I/O
+;   - String printing via CHROUT
+;   - Waiting for keypress via GETIN
+;
+; Build: make
+; Run:   make run
+
+; Include Commander X16 hardware equates
+!source "x16.a"
+
+; ---------------------------------------------------------------------------
+; Program origin at $0801 (start of BASIC program area)
+; ---------------------------------------------------------------------------
+* = $0801
+
+; ---------------------------------------------------------------------------
+; BASIC stub: "10 SYS 2061"
+; This generates a single BASIC line that auto-runs the machine code.
+; $0801: pointer to next line, line number, SYS token, "2061", end
+; The machine code begins at $080D (decimal 2061).
+; ---------------------------------------------------------------------------
+    !word @next_line        ; Pointer to next BASIC line
+    !word 10                ; Line number 10
+    !byte $9E               ; SYS token
+    !pet "2061"             ; "2061" in PETSCII
+    !byte 0                 ; End of BASIC line (null terminator)
+@next_line:
+    !word 0                 ; End of BASIC program (null pointer)
+
+; ---------------------------------------------------------------------------
+; Main program starts here at $080D
+; ---------------------------------------------------------------------------
+main:
+    ; Print the hello message character by character
+    ldx #0                  ; X = string index
+.print_loop:
+    lda hello_msg, x        ; Load next character from string
+    beq .wait_key           ; If zero (end of string), stop printing
+    jsr CHROUT              ; Call KERNAL: output character to screen
+    inx                     ; Advance to next character
+    bne .print_loop         ; Continue (branch always, string < 256 chars)
+
+.wait_key:
+    ; Wait for the user to press a key
+    jsr GETIN               ; Call KERNAL: get character from keyboard buffer
+    cmp #0                  ; Was a key pressed?
+    beq .wait_key           ; No key yet, keep polling
+
+    ; Return to BASIC
+    rts
+
+; ---------------------------------------------------------------------------
+; Data section - hello string
+; ---------------------------------------------------------------------------
+hello_msg:
+    !byte $93               ; PETSCII: clear screen
+    !pet "hello from {{project_name}}!"
+    !byte $0D               ; Carriage return
+    !byte $0D
+    !pet "commander x16 - 65c02 @ 8mhz"
+    !byte $0D
+    !pet "vera graphics & audio"
+    !byte $0D
+    !pet "512kb banked ram"
+    !byte $0D
+    !byte $0D
+    !pet "press any key to continue..."
+    !byte $0D
+    !byte 0                 ; Null terminator

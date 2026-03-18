@@ -13,3 +13,17 @@
 !.claude/skills/
 !.claude/mcp.json
 !.claude/settings.json
+
+# Upstream repos (cloned by scripts/clone-repos.sh)
+upstream/*
+!upstream/README.md
+
+# Build artifacts
+projects/*/build/
+*.prg
+*.o
+*.obj
+*.sym
+*.d64
+*.sdcard
+*.img
