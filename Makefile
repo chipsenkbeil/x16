@@ -27,11 +27,11 @@ help:
 		awk -F': ' '{printf "  $(CYAN)%-20s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Examples:"
-	@echo "  make setup                              Install toolchain"
-	@echo "  make new-project NAME=my-game           Create project from default template"
-	@echo "  make new-project NAME=demo TEMPLATE=ca65-asm"
-	@echo "  make build PROJECT=projects/my-game     Build a project"
-	@echo "  make run PROJECT=projects/my-game       Build and run in emulator"
+	@printf "  %-46s %s\n" "make setup" "Install toolchain"
+	@printf "  %-46s %s\n" "make new-project NAME=my-game" "Create project (default template)"
+	@printf "  %-46s %s\n" "make new-project NAME=demo TEMPLATE=ca65-asm" "Create project (ca65 template)"
+	@printf "  %-46s %s\n" "make build PROJECT=projects/my-game" "Build a project"
+	@printf "  %-46s %s\n" "make run PROJECT=projects/my-game" "Build and run in emulator"
 	@echo ""
 
 ## setup: Install toolchain (cc65, emulator, ROM)
@@ -104,7 +104,7 @@ list-templates:
 		if [ "$$name" != "shared" ]; then \
 			desc=""; ok=""; miss=""; \
 			case "$$name" in \
-				cc65-c)     desc="C (cc65) — recommended for beginners"; \
+				cc65-c)     desc="C (cc65) - recommended for beginners"; \
 				            ok="cc65"; miss="cc65"; \
 				            command -v cc65 >/dev/null 2>&1 && found=1 || found=0 ;; \
 				ca65-asm)   desc="Assembly (ca65 + ld65)"; \
