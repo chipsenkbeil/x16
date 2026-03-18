@@ -194,11 +194,7 @@ game_loop:
 ; wait_vsync - Wait for vertical blank interrupt flag
 ; ---------------------------------------------------------------------------
 wait_vsync:
-    lda     VERA_ISR
-    and     #$01            ; Check VSYNC bit
-    beq     wait_vsync
-    lda     #$01            ; Acknowledge VSYNC
-    sta     VERA_ISR
+    wai
     rts
 
 ; ---------------------------------------------------------------------------
