@@ -2,6 +2,8 @@
 
 Two-player Pong game for the Commander X16, written in C (cc65). This is a C port of the ca65 assembly version in `projects/pong-asm/`.
 
+<img width="752" height="620" alt="Screenshot 2026-03-18 at 18 45 48" src="https://github.com/user-attachments/assets/9cd2d5d7-3cad-4c9a-86f1-dedafcd95514" />
+
 ## Controls
 
 - **Player 1 (left paddle):** A = up, Z = down
