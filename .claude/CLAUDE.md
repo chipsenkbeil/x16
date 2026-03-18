@@ -1,5 +1,8 @@
 # Commander X16 Development Environment
 
+## Agent Usage Policy
+When researching X16 hardware, docs, or code patterns, ALWAYS use the `x16-explorer` agent (not generic Explore agents). When writing X16 code, ALWAYS use the `x16-coder` agent. When validating builds, ALWAYS use the `code-validator` agent. Only fall back to generic agents for tasks unrelated to X16 development.
+
 ## Quick Reference
 - `make new-project NAME=foo TEMPLATE=cc65-c` — Scaffold new project
 - `make build PROJECT=projects/foo` — Build a project
