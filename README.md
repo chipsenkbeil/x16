@@ -37,6 +37,10 @@ projects/           Project templates & your projects
   templates/cc65-c/           C project template (default)
   templates/ca65-asm/         ca65 assembly template
   templates/acme-asm/         ACME assembly template
+  templates/basic/            Interpreted BASIC template
+  templates/prog8/            Prog8 compiled language template
+  templates/llvm-mos-c/       llvm-mos C template
+  templates/rust-mos/         Rust template (experimental)
   templates/shared/           Shared include files
 
 scripts/            Automation scripts
@@ -52,7 +56,7 @@ upstream/           Cloned X16Community repositories (gitignored)
 
 ```
 make help            Show all targets (default)
-make setup           Install toolchain (cc65, emulator, ROM)
+make setup           Install toolchain (cc65, emulator, ROM; use --prog8/--llvm-mos for extras)
 make clone-upstream  Clone all X16Community repos into upstream/
 make new-project     Scaffold new project (NAME=foo TEMPLATE=cc65-c)
 make build           Build a project (PROJECT=projects/foo)

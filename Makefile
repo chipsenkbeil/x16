@@ -45,7 +45,7 @@ clone-upstream:
 ## new-project: Scaffold new project (NAME=foo TEMPLATE=cc65-c)
 new-project:
 	@if [ -z "$(NAME)" ]; then \
-		echo "Usage: make new-project NAME=<project-name> [TEMPLATE=cc65-c|ca65-asm|acme-asm]"; \
+		echo "Usage: make new-project NAME=<project-name> [TEMPLATE=cc65-c|ca65-asm|acme-asm|basic|prog8|llvm-mos-c|rust-mos]"; \
 		exit 1; \
 	fi
 	@./scripts/new-project.sh "$(NAME)" "$(TEMPLATE)"
@@ -102,14 +102,24 @@ list-templates:
 	@for dir in projects/templates/*/; do \
 		name=$$(basename "$$dir"); \
 		if [ "$$name" != "shared" ]; then \
-			desc=""; \
+			desc=""; status=""; \
 			case "$$name" in \
-				cc65-c)    desc="C project using cc65 (recommended for beginners)" ;; \
-				ca65-asm)  desc="Assembly project using ca65 + ld65" ;; \
-				acme-asm)  desc="Assembly project using ACME assembler" ;; \
-				*)         desc="Custom template" ;; \
+				cc65-c)     desc="C project using cc65 (recommended for beginners)"; \
+					        command -v cc65 >/dev/null 2>&1 && status="✓" || status="✗ cc65 not found" ;; \
+				ca65-asm)   desc="Assembly project using ca65 + ld65"; \
+					        command -v ca65 >/dev/null 2>&1 && status="✓" || status="✗ cc65 not found" ;; \
+				acme-asm)   desc="Assembly project using ACME assembler"; \
+					        command -v acme >/dev/null 2>&1 && status="✓" || status="✗ acme not found" ;; \
+				basic)      desc="Interpreted BASIC (no compiler needed)"; status="✓" ;; \
+				prog8)      desc="Prog8 compiled language"; \
+					        command -v prog8c >/dev/null 2>&1 && status="✓" || status="✗ prog8c not found" ;; \
+				llvm-mos-c) desc="C project using llvm-mos (modern LLVM)"; \
+					        command -v mos-cx16-clang >/dev/null 2>&1 && status="✓" || status="✗ llvm-mos not found" ;; \
+				rust-mos)   desc="Rust (EXPERIMENTAL, requires Docker)"; \
+					        command -v docker >/dev/null 2>&1 && status="✓ docker" || status="✗ docker not found" ;; \
+				*)          desc="Custom template"; status="" ;; \
 			esac; \
-			printf "  $(CYAN)%-15s$(RESET) %s\n" "$$name" "$$desc"; \
+			printf "  $(CYAN)%-15s$(RESET) %-45s %s\n" "$$name" "$$desc" "$$status"; \
 		fi; \
 	done
 	@echo ""

@@ -9,10 +9,13 @@
 | cc65/cl65 | C compiler + linker (all-in-one) | C |
 | ca65 + ld65 | Assembler + linker (part of cc65 suite) | 65xx assembly |
 | ACME | Cross-assembler | 65xx assembly |
-| llvm-mos | LLVM-based backend for 6502 | C, C++, Rust, Zig |
+| X16 BASIC | Built-in interpreted language (ROM) | BASIC |
+| prog8c | Compiled structured language for 6502 | Prog8 |
+| llvm-mos | LLVM-based backend for 6502 | C, C++ |
+| rust-mos | Rust compiler fork (Docker) | Rust (no_std) |
 | x16emu | Official Commander X16 emulator | — |
 
-Most X16 development uses cc65 (C or assembly) or ACME. llvm-mos is newer but gaining traction.
+Most X16 development uses cc65 (C or assembly), ACME, or BASIC. Prog8 and llvm-mos are newer but gaining traction.
 
 ## Installing the Toolchain
 
@@ -188,6 +191,111 @@ cd projects/hello-acme
 message
     !text "HELLO FROM ACME!", $0D, 0
 ```
+
+## Your First BASIC Program
+
+The simplest way to start programming the X16 — no toolchain required.
+
+### Step 1: Create a project
+
+```bash
+make new-project NAME=hello-basic TEMPLATE=basic
+cd projects/hello-basic
+```
+
+### Step 2: Edit src/main.bas
+
+```basic
+10 SCREEN 0
+20 COLOR 1,6
+30 CLS
+40 PRINT "HELLO, COMMANDER X16!"
+50 PRINT
+60 PRINT "PRESS ANY KEY..."
+70 GET A$:IF A$="" GOTO 70
+```
+
+### Step 3: Run in emulator
+
+```bash
+make run    # launches x16emu -bas src/main.bas -run
+```
+
+The emulator's `-bas` flag loads a text BASIC file as if you typed it in. No compilation step needed.
+
+### Beyond Line Numbers
+
+For larger BASIC projects, consider [BASLOAD](https://github.com/stefan-b-jakobsson/basload-x16) which lets you write BASIC without line numbers and compiles labels automatically.
+
+## Your First Prog8 Program
+
+[Prog8](https://prog8.readthedocs.io) is a compiled structured language with first-class X16 support.
+
+### Step 1: Install prog8c
+
+```bash
+# macOS
+brew install prog8
+
+# Or use the setup script
+./scripts/setup.sh --prog8
+```
+
+### Step 2: Create a project
+
+```bash
+make new-project NAME=hello-prog8 TEMPLATE=prog8
+cd projects/hello-prog8
+```
+
+### Step 3: Edit src/main.p8
+
+```prog8
+%import textio
+%zeropage basicsafe
+
+main {
+    sub start() {
+        txt.clear_screen()
+        txt.print("hello from prog8!\n")
+        txt.print("press any key...\n")
+
+        repeat {
+            cx16.r0L = cbm.GETIN()
+            if cx16.r0L != 0
+                break
+        }
+    }
+}
+```
+
+### Step 4: Build and run
+
+```bash
+make        # compiles to build/main.prg
+make run    # builds and launches in emulator
+```
+
+## Using llvm-mos C
+
+[llvm-mos](https://llvm-mos.org/) brings modern C11/C++20 support to the X16 with superior optimization over cc65.
+
+### Quick Start
+
+```bash
+# Install (or use: ./scripts/setup.sh --llvm-mos)
+curl -LO https://github.com/llvm-mos/llvm-mos-sdk/releases/latest/download/llvm-mos-macos.tar.xz
+tar xf llvm-mos-macos.tar.xz && export PATH="$PWD/llvm-mos/bin:$PATH"
+
+# Create and build a project
+make new-project NAME=hello-llvm TEMPLATE=llvm-mos-c
+cd projects/hello-llvm
+make run
+```
+
+The workflow is the same as cc65 but uses `mos-cx16-clang` instead of `cl65`. No `-t cx16` flag needed — the target is in the compiler binary name.
+
+See [Cross-Compilation Guide](cross-compilation-guide.md) for detailed llvm-mos information, header differences, and comparison to cc65.
 
 ## cc65 Target Details
 

@@ -126,19 +126,116 @@ void chrout(char c) {
 
 llvm-mos uses linker scripts similar to ld65 configs but in LLVM/LLD format. The default cx16 target provides a working configuration.
 
-## llvm-mos Rust
+## Prog8
 
-Rust can target 6502 through llvm-mos, but this requires `no_std` development.
+[Prog8](https://prog8.readthedocs.io) is a compiled, structured programming language specifically designed for 8-bit 6502/65C02 machines. It has first-class Commander X16 support.
+
+### What is Prog8?
+
+Prog8 is not a C-family language or BASIC — it is its own compiled language with structured syntax (no line numbers, no GOTO). It compiles to optimized 6502 assembly via the 64tass assembler. Prog8 was designed specifically for retro computers and understands their constraints natively.
+
+### Installation
+
+**macOS (Homebrew):**
+```bash
+brew install prog8
+```
+
+**Other platforms:**
+Prog8 requires Java 11+ and the 64tass assembler. Download the latest release JAR from [GitHub](https://github.com/irmen/prog8/releases), or use the setup script:
+```bash
+./scripts/setup.sh --prog8
+```
+
+### Usage
+
+```bash
+# Compile for Commander X16
+prog8c -target cx16 -out build src/main.p8
+
+# Run in emulator
+x16emu -prg build/main.prg -run
+```
+
+### Example
+
+```prog8
+%import textio
+%import math
+%zeropage basicsafe
+
+main {
+    sub start() {
+        txt.clear_screen()
+        txt.print("hello from prog8!\n")
+
+        ; Direct VERA access
+        cx16.VERA_CTRL = 0
+        cx16.VERA_ADDR_L = $00
+        cx16.VERA_ADDR_M = $00
+        cx16.VERA_ADDR_H = $11  ; auto-increment 1, bank 1
+
+        ; Wait for keypress
+        repeat {
+            cx16.r0L = cbm.GETIN()
+            if cx16.r0L != 0
+                break
+        }
+    }
+}
+```
+
+### Key Features
+
+- Structured syntax with `if`, `when`, `for`, `repeat`, `while`
+- Built-in libraries: `textio`, `graphics`, `math`, `syslib`, `floats`
+- First-class X16 hardware access (`cx16.VERA_*`, `cx16.r0`-`cx16.r15`)
+- Floating-point and fixed-point math
+- Inline assembly blocks for performance-critical code
+- Compiles to efficient 6502 assembly via 64tass
+
+### Comparison to cc65 C
+
+| Feature | cc65 C | Prog8 |
+|---|---|---|
+| Language style | C89 | Custom structured |
+| Learning curve | Moderate (know C) | Low (purpose-built) |
+| X16 integration | Via headers | Built-in |
+| Output quality | Moderate | Good |
+| Inline assembly | `__asm__()` | `%asm {{ }}` |
+| Libraries | Standard C + cx16 | Purpose-built retro |
+| Community | Large | Growing |
+
+## rust-mos (Rust for 6502)
+
+Rust can target 6502 through [rust-mos](https://github.com/mrk-its/rust-mos), a **fork of the Rust compiler** with an llvm-mos backend. This is not standard Rust — it requires a custom toolchain distributed via Docker.
 
 ### Setup
 
-```bash
-# Install llvm-mos Rust support
-# (Requires the llvm-mos SDK and a custom Rust toolchain)
-# See: https://github.com/llvm-mos/llvm-mos-rs
+rust-mos is distributed as a Docker image. There is no native install.
 
-# Install mos-platform for Rust
-cargo install mos-platform
+```bash
+# x86_64 / Intel Mac
+docker pull mrkits/rust-mos
+
+# ARM / Apple Silicon
+docker pull mikaellund/rust-mos
+```
+
+Or use the setup script:
+```bash
+./scripts/setup.sh --rust-mos
+```
+
+### Project Setup
+
+Create `.cargo/config.toml`:
+```toml
+[build]
+target = "mos-cx16-none"
+
+[unstable]
+build-std = ["core"]
 ```
 
 ### Example
@@ -149,7 +246,8 @@ cargo install mos-platform
 
 use core::panic::PanicInfo;
 
-const CHROUT: *const () = 0xFFD2 as *const ();
+const CHROUT: usize = 0xFFD2;
+const GETIN: usize = 0xFFE4;
 
 #[no_mangle]
 pub extern "C" fn main() -> u8 {
@@ -169,12 +267,40 @@ fn panic(_info: &PanicInfo) -> ! {
 }
 ```
 
-### Considerations
-- `no_std` only — no standard library allocator, no heap by default
-- Must manage memory manually (or bring a simple allocator)
-- Core library types (Option, Result, iterators) work fine
-- The compiler generates very efficient code
-- Community support is nascent but growing
+### Building
+
+```bash
+# Build inside the Docker container
+docker run --rm -v "$(pwd)":/src -w /src mrkits/rust-mos \
+    cargo build --release
+
+# Output at: target/mos-cx16-none/release/<project-name>
+x16emu -prg target/mos-cx16-none/release/my-project -run
+```
+
+### Hardware Access
+
+The [mos-hardware](https://github.com/mlund/mos-hardware) crate provides typed register definitions for X16 hardware (VERA, VIA, YM2151) via the `cx16` feature:
+
+```toml
+[dependencies]
+mos-hardware = { version = "0.4", features = ["cx16"] }
+```
+
+### Limitations
+
+- **`no_std` only** — no standard library, no heap allocator by default
+- **Docker required** — the rust-mos compiler runs inside a container
+- **16-bit pointer issues** — some Rust patterns assume pointer sizes > 16 bits
+- **Larger binaries** — Rust codegen overhead is noticeable on 6502 vs C
+- **No X16 community adoption** — very few proven X16 projects exist in Rust
+- **Not official Rust** — rust-mos is a compiler fork, not an upstream target
+
+### Resources
+
+- [rust-mos](https://github.com/mrk-its/rust-mos) — Compiler fork
+- [mos-hardware](https://github.com/mlund/mos-hardware) — Hardware register crate
+- [llvm-mos Rust wiki](https://llvm-mos.org/wiki/Rust) — Setup and usage guide
 
 ## llvm-mos Zig
 
@@ -203,16 +329,17 @@ export fn main() u8 {
 
 ## Comparison Table
 
-| Feature | cc65 | llvm-mos C | llvm-mos C++ | llvm-mos Rust | llvm-mos Zig |
-|---|---|---|---|---|---|
-| Maturity | Production | Beta | Beta | Alpha | Experimental |
-| Language std | C89 | C11 | C++20 | Rust 2021 | Zig 0.11+ |
-| Optimization | Basic | Excellent | Excellent | Excellent | Excellent |
-| X16 headers | Full | Partial | Partial | Minimal | None |
-| Inline ASM | Yes | Yes (GCC) | Yes (GCC) | Yes (asm!) | Yes |
-| Binary size | Larger | Smaller | Moderate | Moderate | Moderate |
-| Community | Large | Growing | Growing | Small | Tiny |
-| Recommended | Yes | Yes | Caution | Experimental | Experimental |
+| Feature | cc65 | llvm-mos C | llvm-mos C++ | Prog8 | rust-mos | llvm-mos Zig |
+|---|---|---|---|---|---|---|
+| Maturity | Production | Beta | Beta | Production | Experimental | Experimental |
+| Language std | C89 | C11 | C++20 | Custom | Rust 2021 (no_std) | Zig 0.11+ |
+| Optimization | Basic | Excellent | Excellent | Good | Excellent | Excellent |
+| X16 support | Full | Partial | Partial | First-class | Minimal (crate) | None |
+| Inline ASM | Yes | Yes (GCC) | Yes (GCC) | Yes | Yes (asm!) | Yes |
+| Binary size | Larger | Smaller | Moderate | Moderate | Larger | Moderate |
+| Dependencies | cc65 | llvm-mos SDK | llvm-mos SDK | Java + 64tass | Docker | Custom Zig |
+| Community | Large | Growing | Growing | Growing | Tiny | Tiny |
+| Recommended | Yes | Yes | Caution | Yes | Experimental | Experimental |
 
 ## Practical Considerations
 
@@ -246,9 +373,10 @@ The mechanism differs by language:
 ### Which Toolchain Should I Use?
 
 - **Just getting started?** → cc65. Best documentation, most examples, easiest setup.
+- **Want a high-level language without C?** → Prog8. Purpose-built for retro, excellent X16 integration.
 - **Need better performance from C?** → llvm-mos C. Drop-in improvement for most code.
 - **Want C++ features?** → llvm-mos C++. Only option for 6502 C++.
-- **Rust enthusiast?** → llvm-mos Rust. Doable but expect rough edges.
+- **Rust enthusiast?** → rust-mos. Doable but expect rough edges and Docker overhead.
 - **Just exploring?** → Any of the above. The X16 is a great platform for learning.
 
 Cross-reference: See [Development Guide](development-guide.md) for cc65 setup and usage. See [ROM Reference](rom-reference.md) for KERNAL API details.

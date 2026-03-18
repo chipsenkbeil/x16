@@ -34,6 +34,12 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(OUTPUT): $(MAIN_SRC) $(wildcard $(INC_DIR)/*.a) $(wildcard $(SRC_DIR)/*.a)
+	@command -v $(AS) >/dev/null 2>&1 || { \
+		echo "Error: acme not found."; \
+		echo "  Build from source: https://github.com/meonwax/acme"; \
+		echo "  Or run: make setup"; \
+		exit 1; \
+	}
 	$(AS) $(ASFLAGS) $(MAIN_SRC)
 
 # Run in emulator

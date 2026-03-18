@@ -3,11 +3,17 @@
 # setup.sh - Commander X16 Development Environment Setup
 #
 # Detects macOS or Linux, installs cc65, ACME assembler, x16 emulator, ROM,
-# and optional tools (Python3+Pillow, lzsa).
+# and optional tools (Python3+Pillow, lzsa, prog8, llvm-mos, rust-mos).
 #
 # Usage:
-#   ./scripts/setup.sh            # Full install
-#   ./scripts/setup.sh --minimal  # Only check/report what's installed
+#   ./scripts/setup.sh                    # Install core tools (cc65, acme, emulator, rom)
+#   ./scripts/setup.sh --all              # Install everything
+#   ./scripts/setup.sh --minimal          # Only check/report what's installed
+#   ./scripts/setup.sh --core             # cc65 + acme + emulator + rom (default)
+#   ./scripts/setup.sh --prog8            # Install prog8c
+#   ./scripts/setup.sh --llvm-mos         # Install llvm-mos SDK
+#   ./scripts/setup.sh --rust-mos         # Pull rust-mos Docker image
+#   ./scripts/setup.sh cc65 prog8 emulator  # Named components
 # =============================================================================
 set -euo pipefail
 
@@ -35,15 +41,125 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 UPSTREAM_DIR="$PROJECT_ROOT/upstream"
 
 MINIMAL=false
-if [[ "${1:-}" == "--minimal" ]]; then
-    MINIMAL=true
-fi
+
+# Components to install
+INSTALL_CC65=false
+INSTALL_ACME=false
+INSTALL_EMULATOR=false
+INSTALL_ROM=false
+INSTALL_PYTHON=false
+INSTALL_LZSA=false
+INSTALL_PROG8=false
+INSTALL_LLVM_MOS=false
+INSTALL_RUST_MOS=false
 
 # Track what happened for the summary
 declare -a INSTALLED=()
 declare -a FOUND=()
 declare -a SKIPPED=()
 declare -a FAILED=()
+
+# ---------------------------------------------------------------------------
+# Parse arguments
+# ---------------------------------------------------------------------------
+parse_args() {
+    if [[ $# -eq 0 ]]; then
+        # Default: install core tools
+        INSTALL_CC65=true
+        INSTALL_ACME=true
+        INSTALL_EMULATOR=true
+        INSTALL_ROM=true
+        INSTALL_PYTHON=true
+        INSTALL_LZSA=true
+        return
+    fi
+
+    for arg in "$@"; do
+        case "$arg" in
+            --minimal)
+                MINIMAL=true
+                # Check everything in minimal mode
+                INSTALL_CC65=true
+                INSTALL_ACME=true
+                INSTALL_EMULATOR=true
+                INSTALL_ROM=true
+                INSTALL_PYTHON=true
+                INSTALL_LZSA=true
+                INSTALL_PROG8=true
+                INSTALL_LLVM_MOS=true
+                INSTALL_RUST_MOS=true
+                ;;
+            --all)
+                INSTALL_CC65=true
+                INSTALL_ACME=true
+                INSTALL_EMULATOR=true
+                INSTALL_ROM=true
+                INSTALL_PYTHON=true
+                INSTALL_LZSA=true
+                INSTALL_PROG8=true
+                INSTALL_LLVM_MOS=true
+                # rust-mos excluded from --all (Docker pull is invasive)
+                ;;
+            --core)
+                INSTALL_CC65=true
+                INSTALL_ACME=true
+                INSTALL_EMULATOR=true
+                INSTALL_ROM=true
+                ;;
+            --prog8)
+                INSTALL_PROG8=true
+                ;;
+            --llvm-mos)
+                INSTALL_LLVM_MOS=true
+                ;;
+            --rust-mos)
+                INSTALL_RUST_MOS=true
+                ;;
+            # Named components
+            cc65)       INSTALL_CC65=true ;;
+            acme)       INSTALL_ACME=true ;;
+            emulator)   INSTALL_EMULATOR=true ;;
+            rom)        INSTALL_ROM=true ;;
+            python)     INSTALL_PYTHON=true ;;
+            lzsa)       INSTALL_LZSA=true ;;
+            prog8)      INSTALL_PROG8=true ;;
+            llvm-mos)   INSTALL_LLVM_MOS=true ;;
+            rust-mos)   INSTALL_RUST_MOS=true ;;
+            --help|-h)
+                show_usage
+                exit 0
+                ;;
+            *)
+                error "Unknown argument: $arg"
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
+}
+
+show_usage() {
+    echo "Usage: $0 [options] [components...]"
+    echo ""
+    echo "Options:"
+    echo "  (no args)     Install core tools (cc65, acme, emulator, rom)"
+    echo "  --all         Install everything (except rust-mos Docker image)"
+    echo "  --minimal     Only check/report what's installed"
+    echo "  --core        Install core tools (cc65, acme, emulator, rom)"
+    echo "  --prog8       Install prog8c compiler"
+    echo "  --llvm-mos    Install llvm-mos SDK"
+    echo "  --rust-mos    Pull rust-mos Docker image"
+    echo "  --help        Show this help"
+    echo ""
+    echo "Components (can combine multiple):"
+    echo "  cc65 acme emulator rom python lzsa prog8 llvm-mos rust-mos"
+    echo ""
+    echo "Examples:"
+    echo "  $0                     # Install core toolchain"
+    echo "  $0 --all               # Install everything"
+    echo "  $0 --prog8             # Install just prog8c"
+    echo "  $0 cc65 prog8 emulator # Install specific components"
+}
 
 # ---------------------------------------------------------------------------
 # OS Detection
@@ -456,6 +572,235 @@ install_lzsa() {
 }
 
 # ---------------------------------------------------------------------------
+# Install Prog8 compiler
+# ---------------------------------------------------------------------------
+install_prog8() {
+    header "Prog8 Compiler"
+
+    if cmd_exists prog8c; then
+        local ver
+        ver="$(prog8c --version 2>&1 | head -1 || echo "unknown")"
+        success "prog8c already installed: $ver"
+        FOUND+=("prog8c")
+        return
+    fi
+
+    if $MINIMAL; then
+        warn "prog8c is NOT installed"
+        SKIPPED+=("prog8c")
+        return
+    fi
+
+    info "Installing prog8c ..."
+
+    if [[ "$OS" == "macos" ]] && cmd_exists brew; then
+        info "Using Homebrew ..."
+        brew install prog8
+    else
+        # Check for Java (required dependency)
+        if ! cmd_exists java; then
+            warn "Java 11+ is required for prog8c."
+            if [[ "$OS" == "linux" ]] && cmd_exists pacman; then
+                info "Installing Java via pacman ..."
+                sudo pacman -S --noconfirm --needed jdk-openjdk
+            elif [[ "$OS" == "linux" ]] && cmd_exists apt-get; then
+                info "Installing Java via apt ..."
+                sudo apt-get update -qq
+                sudo apt-get install -y default-jdk
+            else
+                error "Please install Java 11+ manually, then re-run this script."
+                FAILED+=("prog8c")
+                return
+            fi
+        fi
+
+        # Check for 64tass (required assembler backend)
+        if ! cmd_exists 64tass; then
+            info "Installing 64tass (required by prog8c) ..."
+            local build_dir
+            build_dir="$(mktemp -d)"
+            if git clone https://github.com/irmen/64tass.git "$build_dir/64tass" 2>/dev/null; then
+                make -C "$build_dir/64tass" -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
+                sudo cp "$build_dir/64tass/64tass" /usr/local/bin/64tass
+                chmod +x /usr/local/bin/64tass
+                rm -rf "$build_dir"
+            else
+                warn "64tass build failed. prog8c requires 64tass to work."
+            fi
+        fi
+
+        # Download prog8c release JAR
+        info "Downloading prog8c from GitHub releases ..."
+        local download_url
+        download_url="$(curl -sL https://api.github.com/repos/irmen/prog8/releases/latest | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for asset in data.get('assets', []):
+    if asset['name'].endswith('.jar'):
+        print(asset['browser_download_url'])
+        break
+" 2>/dev/null || true)"
+
+        if [[ -n "$download_url" ]]; then
+            local install_dir="$HOME/.local/share/prog8"
+            mkdir -p "$install_dir"
+            local jar_name
+            jar_name="$(basename "$download_url")"
+            info "Downloading: $download_url"
+            if curl -sL "$download_url" -o "$install_dir/$jar_name"; then
+                # Create wrapper script
+                mkdir -p "$HOME/.local/bin"
+                cat > "$HOME/.local/bin/prog8c" << WRAPPER
+#!/usr/bin/env bash
+exec java -jar "$install_dir/$jar_name" "\$@"
+WRAPPER
+                chmod +x "$HOME/.local/bin/prog8c"
+                info "Installed prog8c wrapper to ~/.local/bin/prog8c"
+                info "Make sure ~/.local/bin is in your PATH."
+            else
+                error "Failed to download prog8c JAR"
+                FAILED+=("prog8c")
+                return
+            fi
+        else
+            error "Could not find prog8c release on GitHub"
+            FAILED+=("prog8c")
+            return
+        fi
+    fi
+
+    if cmd_exists prog8c; then
+        success "prog8c installed successfully"
+        INSTALLED+=("prog8c")
+    else
+        warn "prog8c installed to ~/.local/bin/prog8c — add ~/.local/bin to PATH"
+        INSTALLED+=("prog8c")
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Install llvm-mos SDK
+# ---------------------------------------------------------------------------
+install_llvm_mos() {
+    header "llvm-mos SDK"
+
+    if cmd_exists mos-cx16-clang; then
+        success "mos-cx16-clang found in PATH"
+        FOUND+=("llvm-mos")
+        return
+    fi
+
+    if $MINIMAL; then
+        warn "llvm-mos (mos-cx16-clang) is NOT installed"
+        SKIPPED+=("llvm-mos")
+        return
+    fi
+
+    info "Installing llvm-mos SDK ..."
+
+    local platform_slug=""
+    if [[ "$OS" == "macos" ]]; then
+        platform_slug="macos"
+    elif [[ "$OS" == "linux" ]]; then
+        platform_slug="linux"
+    fi
+
+    if [[ -z "$platform_slug" ]]; then
+        error "Unsupported platform for llvm-mos SDK download"
+        FAILED+=("llvm-mos")
+        return
+    fi
+
+    local install_dir="$HOME/.local/share/llvm-mos"
+
+    info "Downloading llvm-mos SDK for $platform_slug ..."
+    local archive_file
+    archive_file="$(mktemp)"
+    local download_url="https://github.com/llvm-mos/llvm-mos-sdk/releases/latest/download/llvm-mos-${platform_slug}.tar.xz"
+
+    if curl -sL "$download_url" -o "$archive_file"; then
+        info "Extracting to $install_dir ..."
+        mkdir -p "$install_dir"
+        tar xf "$archive_file" -C "$HOME/.local/share/" 2>/dev/null || {
+            # Try .tar.gz if .tar.xz fails
+            rm -f "$archive_file"
+            download_url="https://github.com/llvm-mos/llvm-mos-sdk/releases/latest/download/llvm-mos-${platform_slug}.tar.gz"
+            archive_file="$(mktemp)"
+            curl -sL "$download_url" -o "$archive_file"
+            tar xzf "$archive_file" -C "$HOME/.local/share/"
+        }
+        rm -f "$archive_file"
+
+        if [[ -x "$install_dir/bin/mos-cx16-clang" ]]; then
+            success "llvm-mos SDK installed to $install_dir"
+            info "Add to PATH:  export PATH=\"$install_dir/bin:\$PATH\""
+            INSTALLED+=("llvm-mos")
+        else
+            error "llvm-mos SDK extraction succeeded but mos-cx16-clang not found"
+            FAILED+=("llvm-mos")
+        fi
+    else
+        error "Failed to download llvm-mos SDK"
+        error "Download manually from: https://github.com/llvm-mos/llvm-mos-sdk/releases"
+        FAILED+=("llvm-mos")
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Install rust-mos (Docker)
+# ---------------------------------------------------------------------------
+install_rust_mos() {
+    header "rust-mos (Rust for 6502 via Docker)"
+
+    if ! cmd_exists docker; then
+        if $MINIMAL; then
+            warn "docker is NOT installed (required for rust-mos)"
+            SKIPPED+=("rust-mos")
+        else
+            error "Docker is required for rust-mos but not installed."
+            error "Install Docker: https://docs.docker.com/get-docker/"
+            FAILED+=("rust-mos")
+        fi
+        return
+    fi
+
+    success "Docker found: $(docker --version 2>&1)"
+
+    if $MINIMAL; then
+        # Just check if the image exists
+        if docker image inspect mrkits/rust-mos &>/dev/null || docker image inspect mikaellund/rust-mos &>/dev/null; then
+            success "rust-mos Docker image found"
+            FOUND+=("rust-mos")
+        else
+            warn "rust-mos Docker image not pulled yet"
+            SKIPPED+=("rust-mos")
+        fi
+        return
+    fi
+
+    local image=""
+    case "$ARCH" in
+        arm64|aarch64)
+            image="mikaellund/rust-mos"
+            info "ARM architecture detected, using $image"
+            ;;
+        *)
+            image="mrkits/rust-mos"
+            info "x86 architecture, using $image"
+            ;;
+    esac
+
+    info "Pulling Docker image: $image ..."
+    if docker pull "$image"; then
+        success "rust-mos Docker image pulled: $image"
+        INSTALLED+=("rust-mos")
+    else
+        error "Failed to pull rust-mos Docker image"
+        FAILED+=("rust-mos")
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Verify installations
 # ---------------------------------------------------------------------------
 verify_installations() {
@@ -465,34 +810,34 @@ verify_installations() {
 
     # cc65
     if cmd_exists cc65; then
-        success "cc65:   $(cc65 --version 2>&1 | head -1)"
+        success "cc65:      $(cc65 --version 2>&1 | head -1)"
     else
-        warn "cc65:   not found"
+        warn "cc65:      not found"
         all_good=false
     fi
 
     # ca65 (ships with cc65)
     if cmd_exists ca65; then
-        success "ca65:   $(ca65 --version 2>&1 | head -1)"
+        success "ca65:      $(ca65 --version 2>&1 | head -1)"
     else
-        warn "ca65:   not found"
+        warn "ca65:      not found"
     fi
 
     # ACME
     if cmd_exists acme; then
-        success "acme:   $(acme --version 2>&1 | head -1)"
+        success "acme:      $(acme --version 2>&1 | head -1)"
     else
-        warn "acme:   not found"
+        warn "acme:      not found"
         all_good=false
     fi
 
     # x16emu
     if cmd_exists x16emu; then
-        success "x16emu: found in PATH"
+        success "x16emu:    found in PATH"
     elif [[ -x "$UPSTREAM_DIR/x16-emulator/x16emu" ]]; then
-        success "x16emu: $UPSTREAM_DIR/x16-emulator/x16emu"
+        success "x16emu:    $UPSTREAM_DIR/x16-emulator/x16emu"
     else
-        warn "x16emu: not found"
+        warn "x16emu:    not found"
         all_good=false
     fi
 
@@ -500,28 +845,51 @@ verify_installations() {
     local rom_found=false
     for loc in "$UPSTREAM_DIR/x16-emulator/rom.bin" "$UPSTREAM_DIR/x16-rom/rom.bin" "$UPSTREAM_DIR/x16-rom/build/x16/rom.bin"; do
         if [[ -f "$loc" ]]; then
-            success "ROM:    $loc ($(wc -c < "$loc" | tr -d ' ') bytes)"
+            success "ROM:       $loc ($(wc -c < "$loc" | tr -d ' ') bytes)"
             rom_found=true
             break
         fi
     done
     if ! $rom_found; then
-        warn "ROM:    not found"
+        warn "ROM:       not found"
         all_good=false
     fi
 
     # Python3
     if cmd_exists python3; then
-        success "python3: $(python3 --version 2>&1)"
+        success "python3:   $(python3 --version 2>&1)"
     else
-        info "python3: not found (optional)"
+        info "python3:   not found (optional)"
     fi
 
     # lzsa
     if cmd_exists lzsa; then
-        success "lzsa:   found"
+        success "lzsa:      found"
     else
-        info "lzsa:   not found (optional)"
+        info "lzsa:      not found (optional)"
+    fi
+
+    # prog8c
+    if cmd_exists prog8c; then
+        success "prog8c:    $(prog8c --version 2>&1 | head -1 || echo "found")"
+    else
+        info "prog8c:    not found (install with: $0 --prog8)"
+    fi
+
+    # llvm-mos
+    if cmd_exists mos-cx16-clang; then
+        success "llvm-mos:  found in PATH"
+    elif [[ -x "$HOME/.local/share/llvm-mos/bin/mos-cx16-clang" ]]; then
+        success "llvm-mos:  $HOME/.local/share/llvm-mos/bin/mos-cx16-clang"
+    else
+        info "llvm-mos:  not found (install with: $0 --llvm-mos)"
+    fi
+
+    # Docker (for rust-mos)
+    if cmd_exists docker; then
+        success "docker:    $(docker --version 2>&1)"
+    else
+        info "docker:    not found (needed for rust-mos template)"
     fi
 
     echo ""
@@ -557,6 +925,8 @@ print_summary() {
 # Main
 # ---------------------------------------------------------------------------
 main() {
+    parse_args "$@"
+
     header "Commander X16 Development Environment Setup"
 
     if $MINIMAL; then
@@ -565,12 +935,15 @@ main() {
 
     detect_os
 
-    install_cc65
-    install_acme
-    install_emulator
-    install_rom
-    install_python_pillow
-    install_lzsa
+    $INSTALL_CC65     && install_cc65
+    $INSTALL_ACME     && install_acme
+    $INSTALL_EMULATOR && install_emulator
+    $INSTALL_ROM      && install_rom
+    $INSTALL_PYTHON   && install_python_pillow
+    $INSTALL_LZSA     && install_lzsa
+    $INSTALL_PROG8    && install_prog8
+    $INSTALL_LLVM_MOS && install_llvm_mos
+    $INSTALL_RUST_MOS && install_rust_mos
 
     verify_installations
     print_summary

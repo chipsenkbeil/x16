@@ -39,6 +39,13 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(OUTPUT): $(SOURCES)
+	@command -v $(CC65) >/dev/null 2>&1 || { \
+		echo "Error: cl65 not found (part of cc65 suite)."; \
+		echo "  macOS: brew install cc65"; \
+		echo "  Linux: sudo apt install cc65  /  sudo pacman -S cc65"; \
+		echo "  Or run: make setup"; \
+		exit 1; \
+	}
 	$(CC65) $(CFLAGS) -o $@ $^
 
 # Run in emulator

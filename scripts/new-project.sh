@@ -9,6 +9,10 @@
 #   cc65-c     (default) - C project using cc65
 #   ca65-asm             - Assembly project using ca65
 #   acme-asm             - Assembly project using ACME
+#   basic                - Interpreted BASIC (no compiler needed)
+#   prog8                - Prog8 compiled language
+#   llvm-mos-c           - C project using llvm-mos
+#   rust-mos             - Rust project (experimental, requires Docker)
 # =============================================================================
 set -euo pipefail
 
@@ -36,7 +40,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEMPLATES_DIR="$PROJECT_ROOT/projects/templates"
 PROJECTS_DIR="$PROJECT_ROOT/projects"
 
-VALID_TEMPLATES=("cc65-c" "ca65-asm" "acme-asm")
+VALID_TEMPLATES=("cc65-c" "ca65-asm" "acme-asm" "basic" "prog8" "llvm-mos-c" "rust-mos")
 
 # ---------------------------------------------------------------------------
 # Usage
@@ -45,9 +49,13 @@ usage() {
     echo "Usage: $0 <project-name> [template]"
     echo ""
     echo "Templates:"
-    echo "  cc65-c     C project using cc65 (default)"
-    echo "  ca65-asm   Assembly project using ca65"
-    echo "  acme-asm   Assembly project using ACME assembler"
+    echo "  cc65-c       C project using cc65 (default)"
+    echo "  ca65-asm     Assembly project using ca65"
+    echo "  acme-asm     Assembly project using ACME assembler"
+    echo "  basic        Interpreted BASIC (no compiler needed)"
+    echo "  prog8        Prog8 compiled language"
+    echo "  llvm-mos-c   C project using llvm-mos (modern LLVM)"
+    echo "  rust-mos     Rust project (EXPERIMENTAL, requires Docker)"
     echo ""
     echo "Example:"
     echo "  $0 my-game cc65-c"
@@ -147,6 +155,49 @@ while IFS= read -r -d '' file; do
 done < <(find "$DEST_DIR" -type f -print0)
 
 success "Project created at $DEST_DIR"
+
+# ---------------------------------------------------------------------------
+# Check toolchain availability for the chosen template
+# ---------------------------------------------------------------------------
+check_template_toolchain() {
+    local template="$1"
+    local missing=()
+    case "$template" in
+        cc65-c|ca65-asm)
+            cmd_exists cc65 || missing+=("cc65 (run: make setup)")
+            ;;
+        acme-asm)
+            cmd_exists acme || missing+=("acme (run: make setup)")
+            ;;
+        basic)
+            cmd_exists x16emu || missing+=("x16emu (run: make setup)")
+            ;;
+        prog8)
+            cmd_exists prog8c || missing+=("prog8c (see: https://prog8.readthedocs.io)")
+            cmd_exists java   || missing+=("java 11+ (required by prog8c)")
+            ;;
+        llvm-mos-c)
+            cmd_exists mos-cx16-clang || missing+=("mos-cx16-clang (see: https://github.com/llvm-mos/llvm-mos-sdk/releases)")
+            ;;
+        rust-mos)
+            cmd_exists docker || missing+=("docker (rust-mos requires Docker)")
+            ;;
+    esac
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo ""
+        warn "Missing tools for '$template' template:"
+        for m in "${missing[@]}"; do
+            warn "  - $m"
+        done
+        warn "The project was created, but you won't be able to build until these are installed."
+    fi
+}
+
+cmd_exists() {
+    command -v "$1" &>/dev/null
+}
+
+check_template_toolchain "$TEMPLATE"
 
 # ---------------------------------------------------------------------------
 # Print next steps

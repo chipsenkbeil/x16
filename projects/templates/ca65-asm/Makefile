@@ -35,6 +35,13 @@ $(BUILD_DIR):
 
 # Assemble .s files to .o files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.s
+	@command -v $(AS) >/dev/null 2>&1 || { \
+		echo "Error: ca65 not found (part of cc65 suite)."; \
+		echo "  macOS: brew install cc65"; \
+		echo "  Linux: sudo apt install cc65  /  sudo pacman -S cc65"; \
+		echo "  Or run: make setup"; \
+		exit 1; \
+	}
 	$(AS) $(ASFLAGS) -o $@ $<
 
 # Link .o files to .prg
