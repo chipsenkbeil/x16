@@ -45,6 +45,7 @@ templates/          Project templates
 
 projects/           Your projects (created via make new-project)
   pong-asm/                   Two-player Pong (ca65 assembly)
+  pong-basic/                 Two-player Pong (CBM BASIC V2)
   pong-c/                     Two-player Pong (C port, cc65)
 
 scripts/            Automation scripts

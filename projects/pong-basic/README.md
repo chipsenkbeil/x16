@@ -1,6 +1,6 @@
 # pong-basic
 
-Two-player Pong game for the Commander X16, written in BASIC. This is a BASIC port of the assembly and C versions in `projects/pong-asm/` and `projects/pong-c/`.
+Two-player Pong game for the Commander X16, written in CBM BASIC V2. This is a BASIC port of the assembly and C versions in `projects/pong-asm/` and `projects/pong-c/`.
 
 <img width="752" height="620" alt="Screenshot 2026-03-18 at 23 01 54" src="https://github.com/user-attachments/assets/78329657-94fd-42ce-af70-53507ee20a14" />
 
