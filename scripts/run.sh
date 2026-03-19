@@ -78,12 +78,19 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 2: Find the .prg file
+# Step 2: Find the program file (.prg or .bas)
 # ---------------------------------------------------------------------------
-header "Locate .prg"
+header "Locate Program"
 
 PRG_FILE=""
+BAS_FILE=""
 
+# Check for BASIC source first (src/main.bas)
+if [[ -f "$PROJECT_PATH/src/main.bas" ]]; then
+    BAS_FILE="$PROJECT_PATH/src/main.bas"
+fi
+
+# Look for .prg file
 # Priority 1: build/ subdirectory
 if [[ -d "$PROJECT_PATH/build" ]]; then
     PRG_FILE="$(find "$PROJECT_PATH/build" -maxdepth 2 -name '*.prg' -type f 2>/dev/null | head -1)"
@@ -99,18 +106,22 @@ if [[ -z "$PRG_FILE" ]]; then
     PRG_FILE="$(find "$PROJECT_PATH" -name '*.prg' -type f 2>/dev/null | head -1)"
 fi
 
-if [[ -z "$PRG_FILE" ]]; then
-    error "No .prg file found in $PROJECT_PATH"
+# Decide which file to use
+if [[ -n "$PRG_FILE" ]]; then
+    success "Found: $PRG_FILE"
+elif [[ -n "$BAS_FILE" ]]; then
+    success "Found BASIC source: $BAS_FILE"
+else
+    error "No .prg or .bas file found in $PROJECT_PATH"
     error ""
     error "Looked in:"
     error "  $PROJECT_PATH/build/"
     error "  $PROJECT_PATH/"
+    error "  $PROJECT_PATH/src/main.bas"
     error ""
-    error "Make sure your project builds a .prg file, then try again."
+    error "Make sure your project builds a .prg file (or has a .bas source), then try again."
     exit 1
 fi
-
-success "Found: $PRG_FILE"
 
 # ---------------------------------------------------------------------------
 # Step 3: Find x16emu
@@ -224,7 +235,11 @@ fi
 header "Launch"
 
 # Build the full command
-CMD=("$X16EMU" -prg "$PRG_FILE" -run)
+if [[ -n "$PRG_FILE" ]]; then
+    CMD=("$X16EMU" -prg "$PRG_FILE" -run)
+else
+    CMD=("$X16EMU" -bas "$BAS_FILE" -run)
+fi
 [[ ${#ROM_ARGS[@]} -gt 0 ]] && CMD+=("${ROM_ARGS[@]}")
 [[ ${#EXTRA_ARGS[@]} -gt 0 ]] && CMD+=("${EXTRA_ARGS[@]}")
 
