@@ -78,6 +78,35 @@ VERA_DATA0  = $9F23
     psg_set_voice 2, $0E, $02, $FF, $00  ; G4
 ```
 
+### PSG from C
+
+```c
+#include <cx16.h>
+
+// Play a tone on a PSG voice
+void psg_play(unsigned char voice, unsigned int freq,
+              unsigned char vol, unsigned char waveform) {
+    unsigned long addr = 0x1F9C0UL + voice * 4;
+    // vpoke first byte with auto-increment (0x10 prefix = stride 1)
+    vpoke(freq & 0xFF, 0x100000UL | addr);
+    VERA.data0 = freq >> 8;              // freq high
+    VERA.data0 = 0xC0 | (vol & 0x3F);   // both channels + volume
+    VERA.data0 = (waveform << 6);        // waveform (0=pulse,1=saw,2=tri,3=noise)
+}
+
+// Silence a voice
+void psg_stop(unsigned char voice) {
+    vpoke(0, 0x1F9C2UL + voice * 4);  // set volume to 0
+}
+
+// Play C major chord
+void play_chord(void) {
+    psg_play(0, 0x015F, 63, 0);  // C4, pulse
+    psg_play(1, 0x01B5, 63, 0);  // E4
+    psg_play(2, 0x020E, 63, 0);  // G4
+}
+```
+
 ### Silencing a Voice
 
 ```asm
@@ -142,6 +171,29 @@ lda #$80
 sta $9F3C
 
 ; In your IRQ handler, check AFLOW and feed more samples
+```
+
+### PCM from C
+
+```c
+#include <cx16.h>
+
+#define AUDIO_CTRL  (*(volatile unsigned char*)0x9F3B)
+#define AUDIO_RATE  (*(volatile unsigned char*)0x9F3C)
+#define AUDIO_DATA  (*(volatile unsigned char*)0x9F3D)
+
+void pcm_init(unsigned char rate) {
+    AUDIO_CTRL = 0x8F;   // reset FIFO, 8-bit mono, vol=15
+    AUDIO_CTRL = 0x0F;   // clear reset, keep settings
+    AUDIO_RATE = rate;   // e.g., 0x80 for ~24 kHz
+}
+
+void pcm_feed(const unsigned char *data, unsigned int len) {
+    unsigned int i;
+    for (i = 0; i < len; i++) {
+        AUDIO_DATA = data[i];
+    }
+}
 ```
 
 ## YM2151 FM Synthesis
@@ -318,6 +370,39 @@ ldx #%01111000      ; all 4 slots on, channel 0
 jsr ym_write
 ```
 
+### YM2151 from C
+
+```c
+#include <cx16.h>
+
+// Write to YM2151 with busy-wait delay
+void ym_write(unsigned char reg, unsigned char val) {
+    unsigned char i;
+    YM2151.reg = reg;       // $9F40 — register address
+    YM2151.data = val;      // $9F41 — register data
+    // Wait ~224 CPU cycles for YM2151 internal processing
+    for (i = 0; i < 10; i++) { __asm__("nop"); }
+}
+
+void ym_reset(void) {
+    unsigned int i;
+    for (i = 0; i < 256; i++) ym_write(i, 0);
+}
+
+// Play A4 on channel 0 with a simple sine-like patch
+void ym_play_note(void) {
+    ym_write(0x20, 0xC0);        // Ch0: L+R output, algo 0, fb 0
+    ym_write(0x60 + 0x18, 0x00); // OP4 TL=0 (carrier, loudest)
+    ym_write(0x80 + 0x18, 0x1F); // OP4 AR=31 (instant attack)
+    ym_write(0xE0 + 0x18, 0x07); // OP4 D1L=0, RR=7
+    ym_write(0x60, 0x7F);        // OP1 TL=127 (silent modulator)
+    ym_write(0x68, 0x7F);        // OP2 TL=127
+    ym_write(0x70, 0x7F);        // OP3 TL=127
+    ym_write(0x28, 0x4A);        // KC: octave 4, note A
+    ym_write(0x08, 0x78);        // Key on: all 4 ops, channel 0
+}
+```
+
 ### Common Instrument Presets
 
 Brief description of how to approximate common sounds:
@@ -341,12 +426,59 @@ These commands abstract the register-level details. For direct register control,
 
 ZSM (ZSound Music) is the standard music file format for the X16. It stores a stream of register writes for both YM2151 and VERA PSG, enabling tracker-based music playback.
 
-Key features:
-- Supports YM2151 and PSG register writes
-- Tick-based timing (typically 60 Hz)
-- Loop points
-- PCM data blocks
-- Multiple players available (zsound, etc.)
+### Header (16 bytes)
+
+| Offset | Size | Field | Description |
+|--------|------|-------|-------------|
+| $00 | 2 | Magic | `zm` (0x7A, 0x6D) |
+| $02 | 1 | Version | Format version (currently 1) |
+| $03 | 3 | Loop Point | Byte offset to loop start (0 = no loop) |
+| $06 | 3 | PCM Offset | Byte offset to PCM index table (0 = none) |
+| $09 | 1 | FM Channel Mask | Bits 0-7 = which YM2151 channels are used |
+| $0A | 2 | PSG Channel Mask | Bits 0-15 = which PSG voices are used |
+| $0C | 2 | Tick Rate | Playback rate in Hz (typically 60) |
+| $0E | 2 | Reserved | Set to zero |
+
+### Stream Commands
+
+| Byte Range | Type | Action |
+|------------|------|--------|
+| $00–$3F | PSG write | Write next byte to PSG register offset N (from $1F9C0) |
+| $40 | EXTCMD | Extension command (PCM triggers, sync events, custom data) |
+| $41–$7F | FM write | Write next N reg/value pairs to YM2151 |
+| $80 | EOF | End of music data |
+| $81–$FF | Delay | Wait (N & $7F) ticks |
+
+### Playback from Assembly
+
+```asm
+; Load ZSM file to banked RAM, then play via VSYNC IRQ
+; Uses a ZSM player library (zsound or ZSMKit)
+
+; 1. Load ZSM file to banked RAM starting at bank 10
+lda #10
+sta RAM_BANK
+lda #<zsm_filename
+ldx #>zsm_filename
+ldy #(zsm_filename_end - zsm_filename)
+jsr load_file_to_bank  ; your file loading routine
+
+; 2. Initialize player
+lda #10              ; starting bank
+ldx #<$A000          ; address within bank
+ldy #>$A000
+jsr zsm_init         ; player init (library-specific)
+
+; 3. Hook VSYNC IRQ — call zsm_tick once per frame
+; (See Music Engine Design section below)
+```
+
+### Player Libraries
+
+- **[zsound](https://github.com/ZeroByteOrg/zsound)** — Original ZSM player, assembly library with simple API
+- **[ZSMKit](https://github.com/mooinglemur/zsmkit)** — Newer player with multi-song support, PCM instrument playback, and priority system
+
+ZSM files are headerless (no 2-byte PRG load address) — use headerless load mode when loading from disk.
 
 ## Music Engine Design
 

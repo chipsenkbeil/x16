@@ -743,4 +743,14 @@ loop:
 - When player reaches edge, load next level section from banked RAM
 - Update tile map, reset scroll, reposition player
 
+## Complete Examples
+
+The `projects/` directory contains fully working game implementations that demonstrate the patterns in this guide:
+
+- **[pong-asm](../projects/pong-asm/)** — Assembly (ca65) Pong with hardware sprites, PSG audio, VSYNC game loop, and SNES controller input
+- **[pong-c](../projects/pong-c/)** — C (cc65) Pong showing the same game logic in C with `vpoke()`, `VERA.data0`, and joystick input
+- **[pong-basic](../projects/pong-basic/)** — BASIC Pong using `SPRMEM`, `SPRITE`, `MOVSPR`, `VPOKE` for PSG audio, and `JOY()` for input
+
+Each implements the full game loop pattern: VSYNC wait → input → physics → collision → sprite update → audio.
+
 Cross-reference: See [VERA Programming Guide](vera-programming-guide.md) for graphics details. See [Sound Programming](sound-programming.md) for audio. See [Memory Map](memory-map.md) for address reference. See [Development Guide](development-guide.md) for build tools.

@@ -305,6 +305,53 @@ PRINT, INPUT, GET, IF...THEN, FOR...NEXT, GOTO, GOSUB...RETURN, READ, DATA, REST
 | SLEEP n | Sleep n jiffies |
 | TILE x,y,tile | Set tile |
 | SPRITE ... | Configure sprite |
+| SPRMEM ... | Set sprite memory source |
+| MOVSPR sprite,x,y | Move sprite to position |
+| JOY(n) | Read joystick n (0=keyboard, 1-4=SNES) |
+
+### BASIC Audio Commands
+
+The ROM audio API (bank $0A) provides high-level music commands:
+
+#### FM (YM2151) Commands
+
+| Command | Syntax | Description |
+|---------|--------|-------------|
+| FMINIT | `FMINIT` | Reset YM2151, silence all channels |
+| FMNOTE | `FMNOTE ch,note,dur` | Play note (note: 0-95, dur: jiffies, 0=indefinite) |
+| FMCHORD | `FMCHORD ch1,n1,ch2,n2[,...]` | Play multiple notes simultaneously |
+| FMFREQ | `FMFREQ ch,freq` | Set frequency directly (Hz) |
+| FMDRUM | `FMDRUM drumnum` | Play percussion (uses CH7 noise mode) |
+| FMINST | `FMINST ch,inst` | Load instrument preset (0-11 built-in) |
+| FMPAN | `FMPAN ch,pan` | Set pan (1=left, 2=right, 3=both) |
+| FMPLAY | `FMPLAY ch,"string"` | Play note string (e.g., `"O4CDEFGAB"`) |
+| FMPOKE | `FMPOKE reg,val` | Direct YM2151 register write |
+| FMVIB | `FMVIB ch,speed,depth` | Set vibrato |
+| FMVOL | `FMVOL ch,vol` | Set volume (0-63) |
+
+#### PSG Commands
+
+| Command | Syntax | Description |
+|---------|--------|-------------|
+| PSGINIT | `PSGINIT` | Reset PSG, silence all 16 voices |
+| PSGNOTE | `PSGNOTE voice,note,dur` | Play note (note: 0-95, dur: jiffies) |
+| PSGCHORD | `PSGCHORD v1,n1,v2,n2[,...]` | Play multiple notes simultaneously |
+| PSGFREQ | `PSGFREQ voice,freq` | Set frequency directly (Hz) |
+| PSGPAN | `PSGPAN voice,pan` | Set pan (1=left, 2=right, 3=both) |
+| PSGPLAY | `PSGPLAY voice,"string"` | Play note string |
+| PSGVOL | `PSGVOL voice,vol` | Set volume (0-63) |
+| PSGWAV | `PSGWAV voice,waveform` | Set waveform (0=pulse, 1=saw, 2=triangle, 3=noise) |
+
+Example:
+```basic
+10 FMINIT:PSGINIT
+20 FMINST 0,0:REM PIANO ON CH 0
+30 FMNOTE 0,48,30:REM PLAY C4 FOR HALF SECOND
+40 SLEEP 30
+50 PSGWAV 0,2:PSGNOTE 0,48,60:REM TRIANGLE C4
+```
+
+See [Sound Programming](sound-programming.md) for register-level audio programming.
 
 ## CMDR-DOS Commands
 

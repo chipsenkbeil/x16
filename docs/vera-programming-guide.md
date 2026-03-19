@@ -334,6 +334,40 @@ ora #$40            ; set bit 6
 sta $9F29
 ```
 
+### Setting Up a Sprite from C
+
+```c
+#include <cx16.h>
+
+// Load sprite image to VRAM, then configure attributes
+void init_sprite(void) {
+    unsigned int i;
+    unsigned int addr_field;
+
+    // Write 128 bytes of 16x16 4bpp sprite data to VRAM $10000
+    // vpoke() first byte — 0x10 prefix sets auto-increment stride to 1
+    vpoke(sprite_data[0], 0x110000UL);
+    for (i = 1; i < 128; i++) {
+        VERA.data0 = sprite_data[i];
+    }
+
+    // Configure sprite 0 attributes at VRAM $1FC00
+    // Image address field = VRAM address / 32
+    addr_field = (unsigned int)(0x10000UL >> 5);  // $0800
+
+    vpoke(addr_field & 0xFF, 0x11FC00UL);         // addr low + auto-incr
+    VERA.data0 = (addr_field >> 8) & 0xFF;        // addr high (4bpp: bit 7=0)
+    VERA.data0 = 160;       // X position low
+    VERA.data0 = 0;         // X position high
+    VERA.data0 = 120;       // Y position low
+    VERA.data0 = 0;         // Y position high
+    VERA.data0 = (3 << 2);  // Z-depth=3 (in front of both layers)
+    VERA.data0 = (1 << 6) | (1 << 4);  // height=16, width=16
+
+    vera_sprites_enable(1);
+}
+```
+
 ## Palette
 
 256 entries, each 2 bytes (little-endian), stored in VRAM at $1FA00:
@@ -407,10 +441,103 @@ Key FX capabilities:
 - **Cache write**: Write 4 bytes to VRAM in a single store (32-bit cache)
 - **Line helper**: Hardware-assisted Bresenham line drawing
 - **Polygon fill**: Hardware-assisted horizontal span filling
-- **16-bit multiply**: 16x16 -> 32-bit multiplication
-- **Affine helper**: Texture mapping support
+- **16-bit multiply**: 16×16 → 32-bit multiplication
+- **Affine helper**: Texture mapping support (rotation, scaling, Mode 7-style effects)
 
-VERA FX is an advanced topic. See the VERA Programmer's Reference for complete details.
+### FX_CTRL Register ($9F29 when DCSEL=2)
+
+| Bit | Name | Description |
+|-----|------|-------------|
+| 7 | Transparent Writes | Zero bytes/nibbles are not written to VRAM |
+| 6 | Cache Write Enable | Writes flush the 32-bit cache to VRAM instead of CPU data |
+| 5 | Cache Fill Enable | Reads from DATA0/DATA1 fill the cache sequentially |
+| 4 | One-byte Cache Cycling | Cache index wraps after 1 byte instead of 4 |
+| 3 | 16-bit Hop | Alternating +1/+(stride-1) increments for 16-bit reads |
+| 2 | 4-bit Mode | Operate on nibbles instead of bytes |
+| 1:0 | Addr1 Mode | 0=normal, 1=line draw, 2=polygon fill, 3=affine |
+
+### Cache Write (4× Faster VRAM Fills)
+
+The 32-bit cache holds 4 bytes. When Cache Write Enable is set, a single write to DATA0 flushes all 4 cache bytes to the 4-byte-aligned VRAM address at once — 4× faster than sequential byte writes.
+
+```asm
+; Fill 2048 bytes of VRAM at $00000 with the value $55
+; Using cache write: 512 writes instead of 2048
+
+; Step 1: Load the fill value into the cache
+lda #(6 << 1)        ; DCSEL=6
+sta $9F25            ; VERA_CTRL
+lda #$55
+sta $9F29            ; FX_CACHE_L
+sta $9F2A            ; FX_CACHE_M
+sta $9F2B            ; FX_CACHE_H
+sta $9F2C            ; FX_CACHE_U
+
+; Step 2: Enable cache write mode
+lda #(2 << 1)        ; DCSEL=2
+sta $9F25
+lda #$40             ; Cache Write Enable (bit 6)
+sta $9F29            ; FX_CTRL
+
+; Step 3: Set VERA address with stride=4
+stz $9F20            ; ADDR_L = 0
+stz $9F21            ; ADDR_M = 0
+lda #$30             ; increment=4 (stride value 3), addr bit16=0
+sta $9F22
+
+; Step 4: Write — each STA writes 4 bytes from cache
+; Value written is a nibble mask ($00 = write all 4 bytes)
+ldx #0               ; 256 iterations × 2 = 512 writes = 2048 bytes
+ldy #2
+@outer:
+@inner:
+    stz $9F23        ; flush cache → writes 4 bytes to VRAM
+    dex
+    bne @inner
+    dey
+    bne @outer
+
+; Step 5: Disable FX
+stz $9F25            ; DCSEL=0
+```
+
+### 16-bit Hardware Multiplier
+
+The 32-bit cache doubles as multiplier input. Lower 16 bits = multiplicand, upper 16 bits = multiplier. Both are signed.
+
+```asm
+; Multiply 69 × 420
+lda #(6 << 1)        ; DCSEL=6
+sta $9F25
+lda #<69
+sta $9F29            ; FX_CACHE_L (multiplicand low)
+lda #>69
+sta $9F2A            ; FX_CACHE_M (multiplicand high)
+lda #<420
+sta $9F2B            ; FX_CACHE_H (multiplier low)
+lda #>420
+sta $9F2C            ; FX_CACHE_U (multiplier high)
+
+; Result is accumulated internally.
+; Read FX_ACCUM_RESET ($9F29 at DCSEL=6) to reset accumulator.
+; Read FX_ACCUM ($9F2A at DCSEL=6) to trigger multiply-accumulate.
+; The 32-bit result is placed in the cache and written to VRAM
+; via cache write.
+```
+
+### Line Draw Helper
+
+VERA FX implements Bresenham's line algorithm in hardware (Addr1 Mode = 1). Set ADDR1 to the start pixel, configure X/Y increment registers per octant, then write pixels to DATA1 — VERA auto-advances along the line.
+
+### Polygon Fill Helper
+
+Addr1 Mode = 2 provides hardware-assisted horizontal span filling for polygon rasterization. ADDR0 tracks the left edge of each scanline, X/Y incrementers hold left/right slopes, and DATA1 writes fill the span.
+
+### Affine Helper
+
+Addr1 Mode = 3 enables texture mapping through an FX-specific tile map. X/Y position and increment registers control source pixel traversal, supporting rotation, scaling, and Mode 7-style effects.
+
+For full details on line draw, polygon fill, and affine operations, see the [VERA FX Reference](https://github.com/X16Community/x16-docs/blob/master/X16%20Reference%20-%2010%20-%20VERA%20FX%20Reference.md) in the X16 documentation.
 
 ## PSG Audio
 

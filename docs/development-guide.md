@@ -223,6 +223,115 @@ make run    # launches x16emu -bas src/main.bas -run
 
 The emulator's `-bas` flag loads a text BASIC file as if you typed it in. No compilation step needed.
 
+### BASIC Graphics
+
+BASIC can access VERA directly using `VPOKE` and `POKE` for graphics beyond simple text:
+
+#### Direct VRAM Access with VPOKE
+
+```basic
+10 REM VPOKE BANK, ADDRESS, VALUE
+20 REM WRITE TO TEXT LAYER MAP (LAYER 1 AT $B000)
+30 VPOKE 1, $B000 + ROW*$100 + COL*2, CHARCODE
+40 VPOKE 1, $B000 + ROW*$100 + COL*2 + 1, COLOR
+```
+
+#### Bitmap Mode Setup
+
+Set up a 320x240 8bpp bitmap for pixel drawing:
+
+```basic
+10 REM CONFIGURE 320X240 BITMAP, 8BPP, LAYER 0
+20 POKE $9F2A, $40:REM HSCALE=64 (320 WIDE)
+30 POKE $9F2B, $40:REM VSCALE=64 (240 HIGH)
+40 POKE $9F2D, $07:REM L0 CONFIG: 8BPP + BITMAP
+50 POKE $9F2F, $00:REM L0 TILEBASE: DATA AT VRAM $00000
+60 POKE $9F29, $11:REM DC_VIDEO: VGA + LAYER 0 ENABLED
+70 REM PLOT PIXEL AT (X,Y) WITH COLOR C
+80 PO = Y*320 + X : BA = 0
+90 IF PO > $FFFF THEN PO = PO - $10000 : BA = 1
+100 VPOKE BA, PO, C
+```
+
+#### Custom Palette
+
+```basic
+10 REM SET PALETTE ENTRY I TO RGB (R,G,B) — 4 BITS EACH
+20 VPOKE 1, $FA00+I*2, G*16+B
+30 VPOKE 1, $FA00+I*2+1, R
+```
+
+### BASIC Sprites
+
+Use the high-level `SPRMEM`, `SPRITE`, and `MOVSPR` commands:
+
+```basic
+10 REM UPLOAD SPRITE PIXEL DATA TO VRAM $10000
+20 FOR I=0 TO 127:VPOKE 1,I,$11:NEXT
+30 REM CONFIGURE: SPRMEM SPRITE, BANK, ADDR, BPP
+40 SPRMEM 0, 1, 0, 0:REM SPRITE 0 IMAGE AT $10000, 4BPP
+50 REM DISPLAY: SPRITE ID,ZDEPTH,HFLIP,VFLIP,PALOFF,WIDTH,HEIGHT
+60 SPRITE 0, 3, 0, 0, 0, 1, 2:REM Z=3(FRONT), 16X32
+70 MOVSPR 0, 160, 120:REM MOVE SPRITE 0 TO CENTER
+```
+
+You can also set sprite attributes directly with VPOKE to the sprite attribute table at VRAM $1FC00 (8 bytes per sprite):
+
+```basic
+10 REM SET SPRITE 0 X POSITION TO 160
+20 VPOKE 1, $FC02, 160:REM X LOW BYTE
+30 VPOKE 1, $FC03, 0:REM X HIGH BYTE
+```
+
+### BASIC Audio
+
+BASIC provides dedicated audio commands for both PSG and FM synthesis:
+
+```basic
+10 PSGINIT:FMINIT:REM RESET AUDIO
+20 REM PSG: SET WAVEFORM AND PLAY A NOTE
+30 PSGWAV 0, 2:REM VOICE 0 = TRIANGLE
+40 PSGNOTE 0, 48, 60:REM PLAY C4 FOR 1 SECOND
+50 REM FM: LOAD INSTRUMENT AND PLAY
+60 FMINST 0, 0:REM CHANNEL 0 = PIANO PRESET
+70 FMNOTE 0, 48, 30:REM PLAY C4 FOR HALF SECOND
+```
+
+For direct PSG register access (e.g., sound effects), use VPOKE to the PSG register space at VRAM $1F9C0:
+
+```basic
+10 REM PLAY A BEEP ON PSG VOICE 14
+20 VPOKE 1,$F9F8,$7C:REM FREQ LOW
+30 VPOKE 1,$F9F9,$0A:REM FREQ HIGH
+40 VPOKE 1,$F9FA,$F0:REM VOLUME=48, BOTH CHANNELS
+50 VPOKE 1,$F9FB,$20:REM TRIANGLE WAVEFORM
+60 REM SILENCE IT LATER
+70 VPOKE 1,$F9FA,0:REM VOLUME=0
+```
+
+### BASIC Input
+
+#### Keyboard with GET
+
+```basic
+10 REM NON-BLOCKING: RETURNS EMPTY STRING IF NO KEY
+20 GET A$:IF A$="" GOTO 20
+30 IF A$="W" THEN PRINT "UP!"
+40 IF A$=" " THEN PRINT "SPACE!"
+```
+
+#### Joystick with JOY()
+
+```basic
+10 REM JOY(0)=KEYBOARD-AS-JOYSTICK, JOY(1-4)=SNES PORTS
+20 JV = JOY(0)
+30 REM BUTTONS ARE ACTIVE-HIGH IN BASIC (UNLIKE ASM)
+40 IF (JV AND 8) THEN PRINT "UP"
+50 IF (JV AND 4) THEN PRINT "DOWN"
+60 IF (JV AND 64) THEN PRINT "BUTTON A"
+70 IF (JV AND 128) THEN PRINT "BUTTON B"
+```
+
 ### Beyond Line Numbers
 
 For larger BASIC projects, consider [BASLOAD](https://github.com/stefan-b-jakobsson/basload-x16) which lets you write BASIC without line numbers and compiles labels automatically.
@@ -338,6 +447,118 @@ void __fastcall__ chrout(char c) {
 // Or use the cc65 KERNAL wrappers where available
 ```
 
+## Sprite Setup from C
+
+Setting up hardware sprites from C using `vpoke()` and `VERA.data0`:
+
+```c
+#include <cx16.h>
+
+// Write sprite image data to VRAM
+void load_sprite_data(unsigned long vram_addr,
+                      const unsigned char *data,
+                      unsigned int len) {
+    unsigned int i;
+    // vpoke() sets address with auto-increment (0x10 prefix = stride 1)
+    vpoke(data[0], 0x100000 | vram_addr);
+    for (i = 1; i < len; i++) {
+        VERA.data0 = data[i];
+    }
+}
+
+// Configure sprite attributes (8 bytes at VRAM $1FC00 + sprite * 8)
+void setup_sprite(unsigned char sprite, unsigned long img_addr,
+                  unsigned int x, unsigned int y,
+                  unsigned char bpp8, unsigned char w, unsigned char h) {
+    unsigned int addr_field = (unsigned int)(img_addr >> 5);
+
+    // Set VERA address to sprite attribute block with auto-increment
+    vpoke(addr_field & 0xFF, 0x11FC00UL + sprite * 8);
+    VERA.data0 = (addr_field >> 8) | (bpp8 ? 0x80 : 0x00);
+    VERA.data0 = x & 0xFF;            // X low
+    VERA.data0 = x >> 8;              // X high
+    VERA.data0 = y & 0xFF;            // Y low
+    VERA.data0 = y >> 8;              // Y high
+    VERA.data0 = (3 << 2);            // Z-depth=3 (in front)
+    VERA.data0 = (h << 6) | (w << 4); // size + palette offset 0
+}
+
+void main(void) {
+    // Load 16x16 4bpp sprite data (128 bytes) to VRAM $10000
+    load_sprite_data(0x10000UL, my_sprite_data, 128);
+
+    // Configure sprite 0: image at $10000, position (160,120),
+    // 4bpp, width=16 (1), height=16 (1)
+    setup_sprite(0, 0x10000UL, 160, 120, 0, 1, 1);
+
+    // Enable sprites in display composer
+    vera_sprites_enable(1);
+}
+```
+
+## Audio from C
+
+### YM2151 FM from C
+
+```c
+#include <cx16.h>
+
+// Write to YM2151 register with required delay
+void ym_write(unsigned char reg, unsigned char val) {
+    unsigned char i;
+    YM2151.reg = reg;       // $9F40
+    YM2151.data = val;      // $9F41
+    // Wait for busy flag to clear (~10 iterations at 8 MHz)
+    for (i = 0; i < 10; i++) {
+        __asm__("nop");
+    }
+}
+
+void play_fm_note(void) {
+    unsigned char ch = 0;
+
+    // Algorithm 0, L+R output, feedback 0
+    ym_write(0x20 + ch, 0xC0);
+
+    // OP4 (carrier, slot $18): TL=0 (loudest), fast attack
+    ym_write(0x60 + 0x18, 0x00);  // TL
+    ym_write(0x80 + 0x18, 0x1F);  // AR=31 (instant)
+    ym_write(0xE0 + 0x18, 0x07);  // D1L=0, RR=7
+
+    // Silence modulator operators
+    ym_write(0x60 + 0x00, 0x7F);  // OP1 TL=127
+    ym_write(0x60 + 0x08, 0x7F);  // OP2
+    ym_write(0x60 + 0x10, 0x7F);  // OP3
+
+    // Set note: octave 4, A (KC=$4A)
+    ym_write(0x28 + ch, 0x4A);
+
+    // Key on: all 4 operators, channel 0
+    ym_write(0x08, 0x78);
+}
+```
+
+### PSG from C
+
+```c
+#include <cx16.h>
+
+// Set PSG voice registers via VRAM at $1F9C0 + voice*4
+void psg_play(unsigned char voice, unsigned int freq,
+              unsigned char vol, unsigned char waveform) {
+    unsigned long addr = 0x1F9C0UL + voice * 4;
+    vpoke(freq & 0xFF, 0x100000 | addr);   // freq low + auto-increment
+    VERA.data0 = freq >> 8;                // freq high
+    VERA.data0 = 0xC0 | (vol & 0x3F);     // both channels + volume
+    VERA.data0 = (waveform << 6);          // waveform
+}
+
+void psg_stop(unsigned char voice) {
+    // Set volume to 0
+    vpoke(0, 0x1F9C2UL + voice * 4);
+}
+```
+
 ## Program Structure
 
 ### .PRG File Format
@@ -393,6 +614,75 @@ lda #0              ; 0 = load
 ldx #<$A000
 ldy #>$A000
 jsr LOAD
+```
+
+## Multi-Bank Code Placement
+
+For programs larger than ~38 KB, place code in banked RAM and call across banks.
+
+### ca65 Linker Configuration
+
+Add a custom segment for banked code in your linker config:
+
+```
+MEMORY {
+    MAIN:     start = $0801, size = $97FF, fill = yes;
+    BANK1:    start = $A000, size = $2000, fill = yes, bank = 1;
+    BANK2:    start = $A000, size = $2000, fill = yes, bank = 2;
+}
+SEGMENTS {
+    BASICSTUB: load = MAIN, type = ro;
+    CODE:      load = MAIN, type = ro;
+    RODATA:    load = MAIN, type = ro;
+    BSS:       load = MAIN, type = bss;
+    BANK1CODE: load = BANK1, type = ro;
+    BANK2CODE: load = BANK2, type = ro;
+}
+```
+
+### Cross-Bank Calling (Trampoline)
+
+Code in banked RAM can't directly JSR to another bank. Use a trampoline in fixed RAM:
+
+```asm
+; Trampoline in fixed RAM (CODE segment)
+; Call a routine in banked RAM
+call_banked:
+    ; A = target bank, r0 = target address
+    pha
+    lda RAM_BANK         ; save current bank
+    pha
+    txa
+    sta RAM_BANK         ; switch to target bank
+    jsr trampoline_jsr   ; indirect call
+    pla
+    sta RAM_BANK         ; restore original bank
+    rts
+
+trampoline_jsr:
+    jmp (r0)             ; jump to address in r0
+
+; Usage from fixed RAM:
+;   lda #2               ; bank 2
+;   ldx #<my_bank2_func
+;   stx r0
+;   ldx #>my_bank2_func
+;   stx r0+1
+;   jsr call_banked
+```
+
+### cc65 Code Segments
+
+In cc65, use `#pragma codeseg` to place functions in specific segments:
+
+```c
+#pragma codeseg("BANK1CODE")
+
+void banked_function(void) {
+    // This function's code will be placed in BANK1CODE segment
+}
+
+#pragma codeseg("CODE")  // back to default
 ```
 
 ## Programming VERA from C
@@ -571,5 +861,13 @@ cbm_k_setlfs(0, 8, 2);
 - Growing community support
 
 See [Cross-Compilation Guide](cross-compilation-guide.md) for details.
+
+## Complete Examples
+
+Working projects in `projects/` demonstrate many of the patterns above:
+
+- **[pong-asm](../projects/pong-asm/)** — Full game in ca65 assembly: sprites, PSG audio, VSYNC loop, controller input
+- **[pong-c](../projects/pong-c/)** — Same game in cc65 C: `vpoke()`, `VERA.data0`, joystick API
+- **[pong-basic](../projects/pong-basic/)** — Same game in BASIC: `SPRMEM`/`SPRITE`/`MOVSPR`, `VPOKE` audio, `JOY()`
 
 Cross-reference: See [Emulator Guide](emulator-guide.md) for detailed emulator usage. See [Memory Map](memory-map.md) for address details.
